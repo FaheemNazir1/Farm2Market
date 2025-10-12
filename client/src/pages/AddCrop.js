@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQuery } from 'react-query';
+import { useQuery } from 'react-query';
 import { cropsAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -131,35 +131,118 @@ const AddCrop = () => {
     }));
   };
 
+  const validateForm = () => {
+    const errors = [];
+
+    if (!formData.name.trim()) {
+      errors.push('Crop name is required');
+    }
+    if (!formData.category) {
+      errors.push('Category is required');
+    }
+    if (!formData.variety.trim()) {
+      errors.push('Variety is required');
+    }
+    if (!formData.description.trim() || formData.description.length < 10) {
+      errors.push('Description must be at least 10 characters');
+    }
+    if (!formData.quantity.value || formData.quantity.value <= 0) {
+      errors.push('Quantity must be a positive number');
+    }
+    if (!formData.price.perUnit || formData.price.perUnit <= 0) {
+      errors.push('Price must be a positive number');
+    }
+    if (!formData.harvestDate) {
+      errors.push('Harvest date is required');
+    }
+    if (!formData.expiryDate) {
+      errors.push('Expiry date is required');
+    }
+    if (!formData.location.state) {
+      errors.push('State is required');
+    }
+    if (!formData.location.district || !formData.location.district.trim()) {
+      errors.push('District is required');
+    }
+    if (!formData.location.pincode || !/^\d{6}$/.test(formData.location.pincode.toString())) {
+      errors.push('Valid 6-digit pincode is required');
+    }
+
+    // Check if expiry date is after harvest date
+    if (formData.harvestDate && formData.expiryDate) {
+      const harvestDate = new Date(formData.harvestDate);
+      const expiryDate = new Date(formData.expiryDate);
+      if (expiryDate <= harvestDate) {
+        errors.push('Expiry date must be after harvest date');
+      }
+    }
+
+    return errors;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Client-side validation
+    const validationErrors = validateForm();
+    if (validationErrors.length > 0) {
+      validationErrors.forEach(error => {
+        toast.error(error);
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const submitData = new FormData();
 
-      // Add form data
-      Object.keys(formData).forEach(key => {
-        if (typeof formData[key] === 'object' && formData[key] !== null) {
-          submitData.append(key, JSON.stringify(formData[key]));
-        } else {
-          submitData.append(key, formData[key]);
-        }
-      });
+      // Add basic form fields
+      submitData.append('name', formData.name);
+      submitData.append('category', formData.category);
+      submitData.append('variety', formData.variety);
+      submitData.append('description', formData.description);
+      submitData.append('harvestDate', formData.harvestDate);
+      submitData.append('expiryDate', formData.expiryDate);
+
+      // Add nested objects as JSON strings
+      submitData.append('quantity', JSON.stringify(formData.quantity));
+      submitData.append('price', JSON.stringify(formData.price));
+      submitData.append('location', JSON.stringify(formData.location));
+      submitData.append('quality', JSON.stringify(formData.quality));
+      submitData.append('packaging', JSON.stringify(formData.packaging));
+      submitData.append('availability', JSON.stringify(formData.availability));
+      submitData.append('delivery', JSON.stringify(formData.delivery));
+      submitData.append('tags', JSON.stringify(formData.tags));
 
       // Add images
       images.forEach((image, index) => {
         submitData.append('images', image.file);
       });
 
-      await cropsAPI.createCrop(submitData);
+      const response = await cropsAPI.createCrop(submitData);
 
-      toast.success('Crop added successfully!');
-      navigate('/dashboard');
+      if (response.success) {
+        toast.success('Crop added successfully!');
+        navigate('/dashboard');
+      }
 
     } catch (error) {
       console.error('Error adding crop:', error);
-      toast.error(error.message || 'Failed to add crop');
+      
+      // Handle validation errors from server
+      if (error.errors) {
+        const errors = error.errors;
+        if (Array.isArray(errors)) {
+          errors.forEach(err => {
+            toast.error(`${err.field || 'Field'}: ${err.message || err.msg}`);
+          });
+        } else {
+          toast.error(error.message || 'Validation failed');
+        }
+      } else {
+        toast.error(error.message || 'Failed to add crop');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -371,6 +454,9 @@ const AddCrop = () => {
                   placeholder="District name"
                   required
                 />
+                {formData.location.district && formData.location.district.trim().length < 2 && (
+                  <p className="mt-1 text-sm text-red-600">District name must be at least 2 characters</p>
+                )}
               </div>
 
               <div>
@@ -380,12 +466,19 @@ const AddCrop = () => {
                 <input
                   type="text"
                   value={formData.location.pincode}
-                  onChange={(e) => handleInputChange('location.pincode', e.target.value)}
+                  onChange={(e) => {
+                    // Only allow digits and limit to 6 characters
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    handleInputChange('location.pincode', value);
+                  }}
                   className="input-field"
                   placeholder="123456"
-                  pattern="\d{6}"
+                  maxLength="6"
                   required
                 />
+                {formData.location.pincode && !/^\d{6}$/.test(formData.location.pincode) && (
+                  <p className="mt-1 text-sm text-red-600">Please enter exactly 6 digits</p>
+                )}
               </div>
             </div>
           </div>

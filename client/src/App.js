@@ -19,6 +19,7 @@ import OrderDetail from './pages/OrderDetail';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import FarmerProfile from './pages/FarmerProfile';
+import AddCrop from './pages/AddCrop';
 import About from './pages/About';
 import Contact from './pages/Contact';
 
@@ -44,6 +45,11 @@ function App() {
               <Route path="/dashboard" element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/crops/new" element={
+                <ProtectedRoute>
+                  <AddCrop />
                 </ProtectedRoute>
               } />
               <Route path="/profile" element={

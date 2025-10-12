@@ -146,6 +146,118 @@ router.get('/', optionalAuth, (req, res) => {
   }
 });
 
+// @route   GET /api/crops/categories
+// @desc    Get crop categories
+// @access  Public
+router.get('/categories', (req, res) => {
+  try {
+    const categories = [
+      'Cereals', 'Pulses', 'Oilseeds', 'Vegetables', 'Fruits',
+      'Spices', 'Medicinal Plants', 'Flowers', 'Others'
+    ];
+
+    res.json({
+      success: true,
+      categories
+    });
+
+  } catch (error) {
+    console.error('Get categories error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   GET /api/crops/prices/recent
+// @desc    Get recent prices by category
+// @access  Public
+router.get('/prices/recent', (req, res) => {
+  try {
+    const recentPrices = {};
+
+    // Get crops from last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentCrops = crops.filter(crop =>
+      crop.isActive &&
+      new Date(crop.createdAt) >= thirtyDaysAgo
+    );
+
+    // Group by category and calculate average prices
+    const categoryPrices = {};
+    recentCrops.forEach(crop => {
+      if (!categoryPrices[crop.category]) {
+        categoryPrices[crop.category] = [];
+      }
+      categoryPrices[crop.category].push(crop.price.perUnit);
+    });
+
+    // Calculate averages
+    Object.keys(categoryPrices).forEach(category => {
+      const prices = categoryPrices[category];
+      const average = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+      recentPrices[category] = {
+        average: Math.round(average),
+        count: prices.length,
+        min: Math.min(...prices),
+        max: Math.max(...prices)
+      };
+    });
+
+    res.json({
+      success: true,
+      recentPrices
+    });
+
+  } catch (error) {
+    console.error('Get recent prices error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   GET /api/crops/farmer/my-crops
+// @desc    Get farmer's crops
+// @access  Private (Farmer only)
+router.get('/farmer/my-crops', auth, authorize('farmer'), (req, res) => {
+  try {
+    const { page = 1, limit = 10, status } = req.query;
+
+    let farmerCrops = crops.filter(crop => crop.farmer === req.user.id);
+
+    if (status) {
+      if (status === 'active') {
+        farmerCrops = farmerCrops.filter(crop => crop.isActive);
+      } else if (status === 'sold') {
+        farmerCrops = farmerCrops.filter(crop => crop.availability.status === 'sold');
+      } else if (status === 'available') {
+        farmerCrops = farmerCrops.filter(crop => crop.isActive && crop.availability.status === 'available');
+      }
+    }
+
+    // Sort by creation date (newest first)
+    farmerCrops.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    // Pagination
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedCrops = farmerCrops.slice(startIndex, endIndex);
+
+    res.json({
+      success: true,
+      crops: paginatedCrops,
+      pagination: {
+        current: Number(page),
+        pages: Math.ceil(farmerCrops.length / limit),
+        total: farmerCrops.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Get farmer crops error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // @route   GET /api/crops/:id
 // @desc    Get single crop
 // @access  Public
@@ -188,14 +300,9 @@ router.post('/', auth, authorize('farmer'), upload.array('images', 5), [
   ]).withMessage('Invalid category'),
   body('variety').notEmpty().withMessage('Crop variety is required'),
   body('description').isLength({ min: 10, max: 1000 }).withMessage('Description must be 10-1000 characters'),
-  body('quantity.value').isNumeric().withMessage('Quantity must be a number'),
-  body('quantity.unit').isIn(['kg', 'quintal', 'tonne', 'piece', 'dozen', 'bunch']).withMessage('Invalid unit'),
-  body('price.perUnit').isNumeric().withMessage('Price must be a number'),
   body('harvestDate').isISO8601().withMessage('Invalid harvest date'),
-  body('expiryDate').isISO8601().withMessage('Invalid expiry date'),
-  body('location.state').notEmpty().withMessage('State is required'),
-  body('location.district').notEmpty().withMessage('District is required'),
-  body('location.pincode').matches(/^\d{6}$/).withMessage('Invalid pincode')
+  body('expiryDate').isISO8601().withMessage('Invalid expiry date')
+  // Note: location validation moved to custom validation since it's sent as JSON string
 ], (req, res) => {
   try {
     const errors = validationResult(req);
@@ -208,6 +315,76 @@ router.post('/', auth, authorize('farmer'), upload.array('images', 5), [
 
     const cropData = req.body;
 
+    // Parse JSON strings from FormData
+    const parseJsonField = (field) => {
+      if (typeof field === 'string') {
+        try {
+          return JSON.parse(field);
+        } catch (e) {
+          return field;
+        }
+      }
+      return field;
+    };
+
+    // Parse nested fields
+    const quantity = parseJsonField(cropData.quantity);
+    const price = parseJsonField(cropData.price);
+    const location = parseJsonField(cropData.location);
+
+    // Custom validation for parsed fields
+    const customErrors = [];
+    
+    if (!quantity || !quantity.value || isNaN(quantity.value) || quantity.value <= 0) {
+      customErrors.push({
+        field: 'quantity.value',
+        message: 'Quantity must be a positive number'
+      });
+    }
+    
+    if (!quantity || !quantity.unit || !['kg', 'quintal', 'tonne', 'piece', 'dozen', 'bunch'].includes(quantity.unit)) {
+      customErrors.push({
+        field: 'quantity.unit',
+        message: 'Invalid unit'
+      });
+    }
+    
+    if (!price || !price.perUnit || isNaN(price.perUnit) || price.perUnit <= 0) {
+      customErrors.push({
+        field: 'price.perUnit',
+        message: 'Price must be a positive number'
+      });
+    }
+
+    // Validate location fields
+    if (!location || !location.state || !location.state.trim()) {
+      customErrors.push({
+        field: 'location.state',
+        message: 'State is required'
+      });
+    }
+
+    if (!location || !location.district || !location.district.trim()) {
+      customErrors.push({
+        field: 'location.district',
+        message: 'District is required'
+      });
+    }
+
+    if (!location || !location.pincode || !/^\d{6}$/.test(location.pincode.toString())) {
+      customErrors.push({
+        field: 'location.pincode',
+        message: 'Invalid pincode - must be exactly 6 digits'
+      });
+    }
+
+    if (customErrors.length > 0) {
+      return res.status(400).json({
+        message: 'Validation failed',
+        errors: customErrors
+      });
+    }
+
     // Handle uploaded images
     const images = req.files ? req.files.map(file => ({
       url: `/uploads/crops/${file.filename}`,
@@ -216,35 +393,40 @@ router.post('/', auth, authorize('farmer'), upload.array('images', 5), [
 
     const crop = {
       _id: generateId(),
-      ...cropData,
+      name: cropData.name,
+      category: cropData.category,
+      variety: cropData.variety,
+      description: cropData.description,
       farmer: req.user.id,
       images,
       quantity: {
-        value: Number(cropData.quantity.value),
-        unit: cropData.quantity.unit
+        value: Number(quantity.value),
+        unit: quantity.unit
       },
       price: {
-        perUnit: Number(cropData.price.perUnit),
+        perUnit: Number(price.perUnit),
         currency: 'INR'
       },
       harvestDate: new Date(cropData.harvestDate),
       expiryDate: new Date(cropData.expiryDate),
-      location: cropData.location,
-      quality: {
-        grade: cropData.quality?.grade || 'Grade A',
-        organic: cropData.quality?.organic || false,
-        certified: cropData.quality?.certified || false,
-        moistureContent: cropData.quality?.moistureContent,
-        purity: cropData.quality?.purity
+      location: location, // Use parsed location object
+      quality: parseJsonField(cropData.quality) || {
+        grade: 'Grade A',
+        organic: false,
+        certified: false
       },
-      packaging: cropData.packaging || { type: 'Standard' },
+      packaging: parseJsonField(cropData.packaging) || { type: 'Standard' },
       availability: {
         status: 'available',
-        minimumOrder: Number(cropData.availability?.minimumOrder) || 1,
-        maximumOrder: cropData.availability?.maximumOrder ? Number(cropData.availability.maximumOrder) : undefined
+        ...parseJsonField(cropData.availability)
       },
-      delivery: cropData.delivery || { available: false, radius: 0, charges: 0, estimatedDays: 0 },
-      tags: cropData.tags || [],
+      delivery: parseJsonField(cropData.delivery) || {
+        available: false,
+        radius: 0,
+        charges: 0,
+        estimatedDays: 0
+      },
+      tags: parseJsonField(cropData.tags) || [],
       views: 0,
       favorites: [],
       isActive: true,
@@ -369,6 +551,75 @@ router.delete('/:id', auth, authorize('farmer'), (req, res) => {
   }
 });
 
+// @route   GET /api/crops/categories
+// @desc    Get crop categories
+// @access  Public
+router.get('/categories', (req, res) => {
+  try {
+    const categories = [
+      'Cereals', 'Pulses', 'Oilseeds', 'Vegetables', 'Fruits',
+      'Spices', 'Medicinal Plants', 'Flowers', 'Others'
+    ];
+
+    res.json({
+      success: true,
+      categories
+    });
+
+  } catch (error) {
+    console.error('Get categories error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   GET /api/crops/prices/recent
+// @desc    Get recent prices by category
+// @access  Public
+router.get('/prices/recent', (req, res) => {
+  try {
+    const recentPrices = {};
+
+    // Get crops from last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentCrops = crops.filter(crop =>
+      crop.isActive &&
+      new Date(crop.createdAt) >= thirtyDaysAgo
+    );
+
+    // Group by category and calculate average prices
+    const categoryPrices = {};
+    recentCrops.forEach(crop => {
+      if (!categoryPrices[crop.category]) {
+        categoryPrices[crop.category] = [];
+      }
+      categoryPrices[crop.category].push(crop.price.perUnit);
+    });
+
+    // Calculate averages
+    Object.keys(categoryPrices).forEach(category => {
+      const prices = categoryPrices[category];
+      const average = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+      recentPrices[category] = {
+        average: Math.round(average),
+        count: prices.length,
+        min: Math.min(...prices),
+        max: Math.max(...prices)
+      };
+    });
+
+    res.json({
+      success: true,
+      recentPrices
+    });
+
+  } catch (error) {
+    console.error('Get recent prices error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // @route   GET /api/crops/farmer/my-crops
 // @desc    Get farmer's crops
 // @access  Private (Farmer only)
@@ -440,75 +691,6 @@ router.post('/:id/favorite', auth, (req, res) => {
 
   } catch (error) {
     console.error('Toggle favorite error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// @route   GET /api/crops/categories
-// @desc    Get crop categories
-// @access  Public
-router.get('/categories', (req, res) => {
-  try {
-    const categories = [
-      'Cereals', 'Pulses', 'Oilseeds', 'Vegetables', 'Fruits',
-      'Spices', 'Medicinal Plants', 'Flowers', 'Others'
-    ];
-
-    res.json({
-      success: true,
-      categories
-    });
-
-  } catch (error) {
-    console.error('Get categories error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// @route   GET /api/crops/prices/recent
-// @desc    Get recent prices by category
-// @access  Public
-router.get('/prices/recent', (req, res) => {
-  try {
-    const recentPrices = {};
-
-    // Get crops from last 30 days
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const recentCrops = crops.filter(crop =>
-      crop.isActive &&
-      new Date(crop.createdAt) >= thirtyDaysAgo
-    );
-
-    // Group by category and calculate average prices
-    const categoryPrices = {};
-    recentCrops.forEach(crop => {
-      if (!categoryPrices[crop.category]) {
-        categoryPrices[crop.category] = [];
-      }
-      categoryPrices[crop.category].push(crop.price.perUnit);
-    });
-
-    // Calculate averages
-    Object.keys(categoryPrices).forEach(category => {
-      const prices = categoryPrices[category];
-      const average = prices.reduce((sum, price) => sum + price, 0) / prices.length;
-      recentPrices[category] = {
-        average: Math.round(average),
-        count: prices.length,
-        min: Math.min(...prices),
-        max: Math.max(...prices)
-      };
-    });
-
-    res.json({
-      success: true,
-      recentPrices
-    });
-
-  } catch (error) {
-    console.error('Get recent prices error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

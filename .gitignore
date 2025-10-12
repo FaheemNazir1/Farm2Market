@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+*/node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -11,14 +12,11 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
-# Production builds
+# Build outputs
 client/build/
 server/dist/
-
-# Logs
-logs
-*.log
-lerna-debug.log*
+*.tgz
+*.tar.gz
 
 # Runtime data
 pids
@@ -30,21 +28,12 @@ pids
 coverage/
 *.lcov
 
-# nyc test coverage
-.nyc_output
-
-# Dependency directories
-node_modules/
-jspm_packages/
-
-# TypeScript cache
-*.tsbuildinfo
+# Logs
+logs
+*.log
 
 # Optional npm cache directory
 .npm
-
-# Optional eslint cache
-.eslintcache
 
 # Optional REPL history
 .node_repl_history
@@ -55,30 +44,11 @@ jspm_packages/
 # Yarn Integrity file
 .yarn-integrity
 
-# parcel-bundler cache (https://parceljs.org/)
-.cache
-.parcel-cache
+# dotenv environment variables file
+.env
+.env.test
 
-# Next.js build output
-.next
-
-# Nuxt.js build / generate output
-.nuxt
-dist
-
-# Gatsby files
-.cache/
-public
-
-# Storybook build outputs
-.out
-.storybook-out
-
-# Temporary folders
-tmp/
-temp/
-
-# Editor directories and files
+# IDE/Editor files
 .vscode/
 .idea/
 *.swp
@@ -94,10 +64,12 @@ temp/
 ehthumbs.db
 Thumbs.db
 
-# Upload directories
-server/uploads/crops/*
-server/uploads/profiles/*
+# Upload directories (keep structure but ignore large files)
+server/uploads/crops/*.jpeg
+server/uploads/crops/*.jpg
+server/uploads/crops/*.png
 !server/uploads/crops/.gitkeep
+server/uploads/profiles/*
 !server/uploads/profiles/.gitkeep
 
 # Database files

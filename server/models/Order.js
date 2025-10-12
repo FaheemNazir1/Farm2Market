@@ -129,7 +129,7 @@ orderSchema.pre('save', async function(next) {
 // Index for efficient queries
 orderSchema.index({ buyer: 1, createdAt: -1 });
 orderSchema.index({ farmer: 1, createdAt: -1 });
-orderSchema.index({ orderNumber: 1 });
+// orderNumber index is already created by unique: true in schema
 orderSchema.index({ status: 1, createdAt: -1 });
 
 // Virtual for order status timeline

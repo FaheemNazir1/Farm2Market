@@ -58,8 +58,20 @@ export const usersAPI = {
 export const cropsAPI = {
   getCrops: (params) => api.get('/crops', { params }),
   getCrop: (id) => api.get(`/crops/${id}`),
-  createCrop: (cropData) => api.post('/crops', cropData),
-  updateCrop: (id, cropData) => api.put(`/crops/${id}`, cropData),
+  createCrop: (cropData) => {
+    // Handle FormData for file uploads
+    const config = cropData instanceof FormData 
+      ? { headers: { 'Content-Type': 'multipart/form-data' } }
+      : {};
+    return api.post('/crops', cropData, config);
+  },
+  updateCrop: (id, cropData) => {
+    // Handle FormData for file uploads
+    const config = cropData instanceof FormData 
+      ? { headers: { 'Content-Type': 'multipart/form-data' } }
+      : {};
+    return api.put(`/crops/${id}`, cropData, config);
+  },
   deleteCrop: (id) => api.delete(`/crops/${id}`),
   getMyCrops: (params) => api.get('/crops/farmer/my-crops', { params }),
   toggleFavorite: (id) => api.post(`/crops/${id}/favorite`),
