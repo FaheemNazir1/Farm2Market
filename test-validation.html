@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Fixed Validation</title>
+</head>
+<body>
+    <h1>Test Fixed Validation</h1>
+    <button onclick="testRegistration()">Test Registration Validation</button>
+    <button onclick="testOrderValidation()">Test Order Validation (After Login)</button>
+    <div id="result"></div>
+
+    <script>
+        let authToken = '';
+        
+        async function testRegistration() {
+            const resultDiv = document.getElementById('result');
+            
+            const testData = {
+                name: "Test User",
+                email: "test" + Date.now() + "@example.com",
+                password: "test123",
+                phone: "9876543210",
+                userType: "farmer",
+                address: {
+                    street: "123 Test Street",
+                    city: "Test City",
+                    state: "Delhi",
+                    pincode: "110001"
+                },
+                farmDetails: {
+                    farmName: "Test Farm"
+                }
+            };
+
+            try {
+                console.log('Testing registration with:', testData);
+                
+                const response = await fetch('http://localhost:5002/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+
+                const responseData = await response.json();
+                console.log('Registration response:', responseData);
+                
+                if (response.ok) {
+                    authToken = responseData.token;
+                }
+                
+                resultDiv.innerHTML = `
+                    <h3>Registration Response Status: ${response.status}</h3>
+                    <pre>${JSON.stringify(responseData, null, 2)}</pre>
+                `;
+                
+            } catch (error) {
+                console.error('Registration Error:', error);
+                resultDiv.innerHTML = `<h3>Registration Error: ${error.message}</h3>`;
+            }
+        }
+
+        async function testOrderValidation() {
+            const resultDiv = document.getElementById('result');
+            
+            if (!authToken) {
+                // Login first
+                try {
+                    const loginResponse = await fetch('http://localhost:5002/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: "buyer@test.com", password: "buyer123" })
+                    });
+                    const loginData = await loginResponse.json();
+                    if (loginData.success) {
+                        authToken = loginData.token;
+                    } else {
+                        resultDiv.innerHTML = '<h3>Please login first!</h3>';
+                        return;
+                    }
+                } catch (error) {
+                    resultDiv.innerHTML = '<h3>Login failed!</h3>';
+                    return;
+                }
+            }
+            
+            const orderData = {
+                items: [{
+                    cropId: "1760284578596gbn810qz3", // Use the actual crop ID from server logs
+                    quantity: 2
+                }],
+                shippingAddress: {
+                    name: "Test Buyer",
+                    phone: "9876543210",
+                    street: "123 Test Street",
+                    city: "Test City",
+                    state: "Delhi",
+                    pincode: "110001",
+                    landmark: "Near Test Market"
+                },
+                paymentMethod: "cod",
+                notes: "Test order"
+            };
+
+            try {
+                console.log('Testing order with:', orderData);
+                
+                const response = await fetch('http://localhost:5002/api/orders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(orderData)
+                });
+
+                const responseData = await response.json();
+                console.log('Order response:', responseData);
+                
+                resultDiv.innerHTML = `
+                    <h3>Order Response Status: ${response.status}</h3>
+                    <pre>${JSON.stringify(responseData, null, 2)}</pre>
+                `;
+                
+            } catch (error) {
+                console.error('Order Error:', error);
+                resultDiv.innerHTML = `<h3>Order Error: ${error.message}</h3>`;
+            }
+        }
+    </script>
+</body>
+</html>

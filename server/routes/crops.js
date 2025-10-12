@@ -66,10 +66,18 @@ router.get('/', optionalAuth, (req, res) => {
       sortBy = 'createdAt',
       sortOrder = 'desc'
     } = req.query;
+    
+    console.log('GET /api/crops - Total crops in DB:', crops.length);
+    console.log('Crops status:');
+    crops.forEach((crop, index) => {
+      console.log(`  ${index + 1}. ${crop.name} - isActive: ${crop.isActive}, status: ${crop.availability.status}`);
+    });
 
     let filteredCrops = crops.filter(crop =>
       crop.isActive && crop.availability.status === 'available'
     );
+    
+    console.log('Filtered crops (active & available):', filteredCrops.length);
 
     // Apply filters
     if (category) {
@@ -436,6 +444,14 @@ router.post('/', auth, authorize('farmer'), upload.array('images', 5), [
     };
 
     crops.push(crop);
+    
+    console.log('Crop added successfully:');
+    console.log('- Crop ID:', crop._id);
+    console.log('- Name:', crop.name);
+    console.log('- Category:', crop.category);
+    console.log('- isActive:', crop.isActive);
+    console.log('- availability.status:', crop.availability.status);
+    console.log('- Total crops in DB:', crops.length);
 
     const populatedCrop = populateFarmer({ ...crop });
 

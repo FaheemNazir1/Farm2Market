@@ -26,13 +26,22 @@ api.interceptors.request.use(
 
 // Response interceptor to handle errors
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    // Return the full response data
+    return response.data;
+  },
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       window.location.href = '/login';
     }
-    return Promise.reject(error.response?.data || error.message);
+    // Return the full error structure for better debugging
+    return Promise.reject({
+      message: error.response?.data?.message || error.message,
+      status: error.response?.status,
+      response: error.response?.data,
+      originalError: error
+    });
   }
 );
 
@@ -83,6 +92,7 @@ export const ordersAPI = {
   createOrder: (orderData) => api.post('/orders', orderData),
   getOrders: (params) => api.get('/orders', { params }),
   getOrder: (id) => api.get(`/orders/${id}`),
+  getInvoice: (id) => api.get(`/orders/${id}/invoice`),
   updateOrderStatus: (id, statusData) => api.put(`/orders/${id}/status`, statusData),
   addRating: (id, ratingData) => api.post(`/orders/${id}/rating`, ratingData),
 };
@@ -93,6 +103,10 @@ export const paymentsAPI = {
   confirmPayment: (paymentData) => api.post('/payments/confirm-payment', paymentData),
   processCOD: (orderId) => api.post('/payments/cod', { orderId }),
   getPaymentMethods: () => api.get('/payments/methods'),
+  // UPI Payment APIs
+  createUPIOrder: (orderData) => api.post('/payments/upi/create-order', orderData),
+  verifyUPIPayment: (verificationData) => api.post('/payments/upi/verify', verificationData),
+  simulateUPIPayment: (paymentData) => api.post('/payments/upi/simulate', paymentData),
 };
 
 export default api;

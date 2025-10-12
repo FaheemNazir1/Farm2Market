@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Order Creation</title>
+</head>
+<body>
+    <h1>Test Order Creation API</h1>
+    <button onclick="testLogin()">1. Login as Buyer</button>
+    <button onclick="testOrder()">2. Test Order Creation</button>
+    <div id="result"></div>
+
+    <script>
+        let authToken = '';
+        
+        async function testLogin() {
+            const resultDiv = document.getElementById('result');
+            
+            const loginData = {
+                email: "buyer@test.com",
+                password: "buyer123"
+            };
+
+            try {
+                console.log('Logging in with:', loginData);
+                
+                const response = await fetch('http://localhost:5002/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(loginData)
+                });
+
+                const responseData = await response.json();
+                console.log('Login response:', responseData);
+                
+                if (response.ok && responseData.success) {
+                    authToken = responseData.token;
+                    resultDiv.innerHTML = `
+                        <h3>Login Success!</h3>
+                        <p>Token: ${authToken.substring(0, 20)}...</p>
+                        <p>User: ${responseData.user.name}</p>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<h3>Login Failed: ${responseData.message}</h3>`;
+                }
+                
+            } catch (error) {
+                console.error('Login Error:', error);
+                resultDiv.innerHTML = `<h3>Login Error: ${error.message}</h3>`;
+            }
+        }
+
+        async function testOrder() {
+            const resultDiv = document.getElementById('result');
+            
+            if (!authToken) {
+                resultDiv.innerHTML = '<h3>Please login first!</h3>';
+                return;
+            }
+            
+            const orderData = {
+                items: [{
+                    cropId: "1", // Assuming crop with ID "1" exists
+                    quantity: 2
+                }],
+                shippingAddress: {
+                    name: "Test Buyer",
+                    phone: "9876543210",
+                    street: "123 Test Street",
+                    city: "Test City",
+                    state: "Delhi",
+                    pincode: "110001",
+                    landmark: "Near Test Market"
+                },
+                paymentMethod: "cod",
+                notes: "Test order"
+            };
+
+            try {
+                console.log('Creating order with:', orderData);
+                
+                const response = await fetch('http://localhost:5002/api/orders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(orderData)
+                });
+
+                const responseData = await response.json();
+                console.log('Order response:', responseData);
+                
+                resultDiv.innerHTML = `
+                    <h3>Order Response Status: ${response.status}</h3>
+                    <pre>${JSON.stringify(responseData, null, 2)}</pre>
+                `;
+                
+            } catch (error) {
+                console.error('Order Error:', error);
+                resultDiv.innerHTML = `<h3>Order Error: ${error.message}</h3>`;
+            }
+        }
+    </script>
+</body>
+</html>

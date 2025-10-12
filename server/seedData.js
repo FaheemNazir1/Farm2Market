@@ -3,6 +3,9 @@ const bcrypt = require('bcryptjs');
 // Helper function to generate unique ID
 const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 9);
 
+// Sample orders array (in-memory database)
+const orders = [];
+
 // Seed test users
 const seedUsers = async () => {
   const users = [];
@@ -250,4 +253,4 @@ const seedCrops = (farmerId) => {
   return crops;
 };
 
-module.exports = { seedUsers, seedCrops };
+module.exports = { seedUsers, seedCrops, orders };

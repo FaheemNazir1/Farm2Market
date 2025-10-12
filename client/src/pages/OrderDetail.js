@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from 'react-query';
 import { ordersAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { downloadInvoice, testPDFGeneration } from '../utils/invoiceGenerator';
 import { 
   ArrowLeft, 
   Package, 
@@ -16,7 +17,8 @@ import {
   X,
   User,
   Phone,
-  Mail
+  Mail,
+  Download
 } from 'lucide-react';
 import LoadingSpinner from '../components/UI/LoadingSpinner';
 import toast from 'react-hot-toast';
@@ -158,11 +160,54 @@ const OrderDetail = () => {
 
   const handleStatusUpdate = async (newStatus) => {
     try {
-      await ordersAPI.updateOrderStatus(id, { status: newStatus });
+      console.log('Updating order status to:', newStatus);
+      const response = await ordersAPI.updateOrderStatus(id, { status: newStatus });
+      console.log('Status update response:', response);
       toast.success('Order status updated successfully!');
+      
+      // Refetch the order to get updated data
+      window.location.reload();
     } catch (error) {
       console.error('Status update error:', error);
-      toast.error('Failed to update order status. Please try again.');
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to update order status. Please try again.';
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleDownloadInvoice = () => {
+    try {
+      console.log('Attempting to download invoice for order:', order);
+      
+      if (!order) {
+        toast.error('Order data not available. Please refresh the page.');
+        return;
+      }
+      
+      if (!order.items || order.items.length === 0) {
+        toast.error('Order has no items. Cannot generate invoice.');
+        return;
+      }
+      
+      const result = downloadInvoice(order);
+      if (result.success) {
+        toast.success('Invoice downloaded successfully!');
+      } else {
+        console.error('Invoice generation failed:', result.error);
+        toast.error(result.error || 'Failed to generate invoice. Please check your browser settings or try again.');
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error(`Failed to download invoice: ${error.message}`);
+    }
+  };
+
+  const handleTestPDF = () => {
+    console.log('Testing PDF generation...');
+    const testResult = testPDFGeneration();
+    if (testResult) {
+      toast.success('PDF library test passed!');
+    } else {
+      toast.error('PDF library test failed! Check console for details.');
     }
   };
 
@@ -439,8 +484,19 @@ const OrderDetail = () => {
                   </button>
                 )}
 
-                <button className="w-full btn-outline">
+                <button 
+                  onClick={handleDownloadInvoice}
+                  className="w-full btn-outline flex items-center justify-center"
+                >
+                  <Download className="w-5 h-5 mr-2" />
                   Download Invoice
+                </button>
+                
+                <button 
+                  onClick={handleTestPDF}
+                  className="w-full btn-secondary flex items-center justify-center mt-2"
+                >
+                  Test PDF Library
                 </button>
               </div>
             </div>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Registration</title>
+</head>
+<body>
+    <h1>Test Registration API</h1>
+    <button onclick="testRegistration()">Test Registration</button>
+    <div id="result"></div>
+
+    <script>
+        async function testRegistration() {
+            const resultDiv = document.getElementById('result');
+            
+            const testData = {
+                name: "Test User",
+                email: "test" + Date.now() + "@example.com",
+                password: "test123",
+                phone: "9876543210",
+                userType: "farmer",
+                address: {
+                    street: "123 Test St",
+                    city: "Test City",
+                    state: "Delhi",
+                    pincode: "110001"
+                },
+                farmDetails: {
+                    farmName: "Test Farm"
+                }
+            };
+
+            try {
+                console.log('Sending registration data:', testData);
+                
+                const response = await fetch('http://localhost:5002/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+
+                const responseData = await response.json();
+                console.log('Registration response:', responseData);
+                
+                resultDiv.innerHTML = `
+                    <h3>Response Status: ${response.status}</h3>
+                    <pre>${JSON.stringify(responseData, null, 2)}</pre>
+                `;
+                
+                if (response.ok) {
+                    console.log('Registration successful!');
+                } else {
+                    console.error('Registration failed:', responseData);
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `<h3>Error: ${error.message}</h3>`;
+            }
+        }
+    </script>
+</body>
+</html>

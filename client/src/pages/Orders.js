@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from 'react-query';
 import { ordersAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { downloadInvoice } from '../utils/invoiceGenerator';
 import { 
   Package, 
   Eye, 
@@ -13,9 +14,11 @@ import {
   CheckCircle,
   AlertCircle,
   Truck,
-  X
+  X,
+  Download
 } from 'lucide-react';
 import LoadingSpinner from '../components/UI/LoadingSpinner';
+import toast from 'react-hot-toast';
 
 const Orders = () => {
   const [filters, setFilters] = useState({
@@ -97,6 +100,38 @@ const Orders = () => {
   const clearFilters = () => {
     setFilters({ status: '', search: '' });
     setPage(1);
+  };
+
+  const handleDownloadInvoice = (order) => {
+    try {
+      console.log('Attempting to download invoice for order:', order);
+      
+      if (!order) {
+        toast.error('Order data not available.');
+        return;
+      }
+      
+      if (!order.items || order.items.length === 0) {
+        toast.error('Order has no items. Cannot generate invoice.');
+        return;
+      }
+      
+      if (!order.orderNumber) {
+        toast.error('Order number is missing. Cannot generate invoice.');
+        return;
+      }
+      
+      const result = downloadInvoice(order);
+      if (result.success) {
+        toast.success('Invoice downloaded successfully!');
+      } else {
+        console.error('Invoice generation failed:', result.error);
+        toast.error(result.error || 'Failed to generate invoice. Please check your browser settings or try again.');
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error(`Failed to download invoice: ${error.message}`);
+    }
   };
 
   if (isLoading) {
@@ -306,7 +341,7 @@ const Orders = () => {
                   </div>
 
                   {/* Actions */}
-                  <div className="mt-6 flex space-x-3">
+                  <div className="mt-6 flex flex-wrap gap-3">
                     <Link
                       to={`/orders/${order._id}`}
                       className="btn-outline flex items-center"
@@ -314,6 +349,13 @@ const Orders = () => {
                       <Eye className="w-4 h-4 mr-2" />
                       View Details
                     </Link>
+                    <button
+                      onClick={() => handleDownloadInvoice(order)}
+                      className="btn-outline flex items-center"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Invoice
+                    </button>
                     {order.status === 'delivered' && !order.ratings?.[isFarmer ? 'farmer' : 'buyer'] && (
                       <button className="btn-secondary flex items-center">
                         <Star className="w-4 h-4 mr-2" />

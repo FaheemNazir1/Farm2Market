@@ -15,12 +15,15 @@ import {
   Lock
 } from 'lucide-react';
 import LoadingSpinner from '../components/UI/LoadingSpinner';
+import UPIPayment from '../components/Payment/UPIPayment';
 import toast from 'react-hot-toast';
 
 const Checkout = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('card');
+  const [showUPIPayment, setShowUPIPayment] = useState(false);
+  const [orderData, setOrderData] = useState(null);
   const [shippingAddress, setShippingAddress] = useState({
     name: '',
     phone: '',
@@ -98,6 +101,13 @@ const Checkout = () => {
       return;
     }
 
+    console.log('Placing order with data:', {
+      cartItemsByFarmer,
+      shippingAddress,
+      paymentMethod,
+      user
+    });
+
     setIsLoading(true);
 
     try {
@@ -113,31 +123,61 @@ const Checkout = () => {
           notes: ''
         };
 
+        console.log('Creating order for farmer:', farmerGroup.farmer.name, 'with data:', orderData);
         return await ordersAPI.createOrder(orderData);
       });
 
       const orders = await Promise.all(orderPromises);
+      console.log('Orders created successfully:', orders);
 
       // Handle payment based on method
       if (paymentMethod === 'cod') {
         // For COD, just process the order
         toast.success('Order placed successfully! You will pay on delivery.');
+        // Clear cart and redirect
+        clearCart();
+        navigate('/orders');
+      } else if (paymentMethod === 'upi') {
+        // For UPI, show UPI payment component
+        setOrderData({
+          orderId: orders[0].order._id,
+          amount: total,
+          orders: orders
+        });
+        setShowUPIPayment(true);
+        setCurrentStep(3);
       } else {
         // For other payment methods, redirect to payment
         toast.success('Order created! Redirecting to payment...');
         // In a real app, you would integrate with payment gateway here
+        clearCart();
+        navigate('/orders');
       }
-
-      // Clear cart and redirect
-      clearCart();
-      navigate('/orders');
 
     } catch (error) {
       console.error('Order placement error:', error);
-      toast.error('Failed to place order. Please try again.');
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response,
+        status: error.status
+      });
+      const errorMessage = error.response?.message || error.message || 'Failed to place order. Please try again.';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleUPISuccess = (paymentResult) => {
+    toast.success('Payment successful! Order confirmed.');
+    clearCart();
+    navigate('/orders');
+  };
+
+  const handleUPIError = (error) => {
+    toast.error('Payment failed. Please try again.');
+    setShowUPIPayment(false);
+    setCurrentStep(2);
   };
 
   if (cartItems.length === 0) {
@@ -366,8 +406,8 @@ const Checkout = () => {
               </div>
             )}
 
-            {/* Step 3: Review Order */}
-            {currentStep === 3 && (
+            {/* Step 3: Review Order or UPI Payment */}
+            {currentStep === 3 && !showUPIPayment && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">Review Your Order</h2>
                 
@@ -452,6 +492,18 @@ const Checkout = () => {
                     )}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* UPI Payment Component */}
+            {showUPIPayment && orderData && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">Complete Payment</h2>
+                <UPIPayment
+                  orderData={orderData}
+                  onSuccess={handleUPISuccess}
+                  onError={handleUPIError}
+                />
               </div>
             )}
           </div>

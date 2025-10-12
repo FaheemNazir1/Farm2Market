@@ -3,6 +3,15 @@ const { body, validationResult } = require('express-validator');
 const Order = require('../models/Order');
 const { auth, authorize } = require('../middleware/auth');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const Razorpay = require('razorpay');
+const crypto = require('crypto');
+const { orders, users } = require('../db');
+
+// Initialize Razorpay (for UPI payments)
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || 'demo_key',
+  key_secret: process.env.RAZORPAY_KEY_SECRET || 'demo_secret'
+});
 
 const router = express.Router();
 
@@ -262,6 +271,184 @@ router.get('/methods', (req, res) => {
     success: true,
     paymentMethods
   });
+});
+
+// @route   POST /api/payments/upi/create-order
+// @desc    Create UPI payment order
+// @access  Private (Buyer only)
+router.post('/upi/create-order', auth, authorize('buyer'), [
+  body('orderId').notEmpty().withMessage('Order ID is required'),
+  body('amount').isNumeric().withMessage('Amount must be a number')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        message: 'Validation failed', 
+        errors: errors.array() 
+      });
+    }
+
+    const { orderId, amount } = req.body;
+
+    // For demo purposes, simulate order lookup from in-memory database
+    // In production, you would verify the order from your database
+    const order = orders.find(o => o._id === orderId);
+    
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Create Razorpay order for UPI
+    const razorpayOrder = await razorpay.orders.create({
+      amount: Math.round(amount * 100), // Convert to paise
+      currency: 'INR',
+      receipt: `order_${orderId}_${Date.now()}`,
+      payment_capture: 1,
+      notes: {
+        orderId: orderId,
+        userId: req.user.id,
+        paymentMethod: 'upi'
+      }
+    });
+
+    // Update order with payment details
+    order.paymentId = razorpayOrder.id;
+    order.razorpayOrderId = razorpayOrder.id;
+
+    res.json({
+      success: true,
+      razorpayOrderId: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency,
+      key: process.env.RAZORPAY_KEY_ID || 'demo_key',
+      order: {
+        id: orderId,
+        amount: amount
+      }
+    });
+
+  } catch (error) {
+    console.error('UPI order creation error:', error);
+    res.status(500).json({ message: 'UPI payment processing failed' });
+  }
+});
+
+// @route   POST /api/payments/upi/verify
+// @desc    Verify UPI payment
+// @access  Private (Buyer only)
+router.post('/upi/verify', auth, authorize('buyer'), [
+  body('razorpay_order_id').notEmpty().withMessage('Razorpay order ID is required'),
+  body('razorpay_payment_id').notEmpty().withMessage('Razorpay payment ID is required'),
+  body('razorpay_signature').notEmpty().withMessage('Razorpay signature is required'),
+  body('orderId').notEmpty().withMessage('Order ID is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        message: 'Validation failed', 
+        errors: errors.array() 
+      });
+    }
+
+    const { 
+      razorpay_order_id, 
+      razorpay_payment_id, 
+      razorpay_signature, 
+      orderId 
+    } = req.body;
+
+    // Verify signature
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'demo_secret')
+      .update(body.toString())
+      .digest('hex');
+
+    if (expectedSignature === razorpay_signature) {
+      // Payment is verified
+      const order = orders.find(o => o._id === orderId);
+      
+      if (order) {
+        order.paymentStatus = 'paid';
+        order.status = 'confirmed';
+        order.paymentId = razorpay_payment_id;
+        order.updatedAt = new Date();
+      }
+
+      res.json({
+        success: true,
+        message: 'UPI payment verified successfully',
+        paymentId: razorpay_payment_id,
+        order: order
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: 'Payment verification failed'
+      });
+    }
+
+  } catch (error) {
+    console.error('UPI verification error:', error);
+    res.status(500).json({ message: 'UPI payment verification failed' });
+  }
+});
+
+// @route   POST /api/payments/upi/simulate
+// @desc    Simulate UPI payment for demo
+// @access  Private (Buyer only)
+router.post('/upi/simulate', auth, authorize('buyer'), [
+  body('orderId').notEmpty().withMessage('Order ID is required'),
+  body('upiId').notEmpty().withMessage('UPI ID is required'),
+  body('amount').isNumeric().withMessage('Amount must be a number')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        message: 'Validation failed', 
+        errors: errors.array() 
+      });
+    }
+
+    const { orderId, upiId, amount } = req.body;
+
+    // Simulate UPI payment processing
+    const order = orders.find(o => o._id === orderId);
+    
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Simulate payment success (90% success rate for demo)
+    const isSuccess = Math.random() > 0.1;
+    
+    if (isSuccess) {
+      order.paymentStatus = 'paid';
+      order.status = 'confirmed';
+      order.paymentId = `upi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      order.updatedAt = new Date();
+
+      res.json({
+        success: true,
+        message: 'UPI payment successful',
+        paymentId: order.paymentId,
+        upiTransactionId: `UPI${Date.now()}`,
+        order: order
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: 'UPI payment failed. Please try again.'
+      });
+    }
+
+  } catch (error) {
+    console.error('UPI simulation error:', error);
+    res.status(500).json({ message: 'UPI payment simulation failed' });
+  }
 });
 
 module.exports = router;

@@ -22,12 +22,27 @@ router.post('/register', [
   body('name').trim().isLength({ min: 2 }).withMessage('Name must be at least 2 characters'),
   body('email').isEmail().normalizeEmail().withMessage('Please enter a valid email'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('phone').matches(/^[6-9]\d{9}$/).withMessage('Please enter a valid 10-digit phone number'),
+  body('phone').matches(/^[0-9]{10,11}$/).withMessage('Please enter a valid 10-11 digit phone number'),
   body('userType').isIn(['farmer', 'buyer']).withMessage('User type must be farmer or buyer'),
-  body('address.street').notEmpty().withMessage('Street address is required'),
-  body('address.city').notEmpty().withMessage('City is required'),
-  body('address.state').notEmpty().withMessage('State is required'),
-  body('address.pincode').matches(/^\d{6}$/).withMessage('Please enter a valid 6-digit pincode')
+  // Custom validation for nested address object
+  body('address').custom((value) => {
+    if (!value || typeof value !== 'object') {
+      throw new Error('Address is required');
+    }
+    if (!value.street || !value.street.trim()) {
+      throw new Error('Street address is required');
+    }
+    if (!value.city || !value.city.trim()) {
+      throw new Error('City is required');
+    }
+    if (!value.state || !value.state.trim()) {
+      throw new Error('State is required');
+    }
+    if (!value.pincode || !/^\d{6}$/.test(value.pincode)) {
+      throw new Error('Please enter a valid 6-digit pincode');
+    }
+    return true;
+  })
 ], async (req, res) => {
   try {
     const errors = validationResult(req);

@@ -134,7 +134,7 @@ const Register = () => {
 
     if (!formData.phone.trim()) {
       newErrors.phone = 'Phone number is required';
-    } else if (!/^[6-9]\d{9}$/.test(formData.phone)) {
+    } else if (!/^[0-9]{10,11}$/.test(formData.phone)) {
       newErrors.phone = 'Invalid phone number';
     }
 
@@ -176,13 +176,16 @@ const Register = () => {
     e.preventDefault();
     
     if (!validateForm()) {
+      console.log('Form validation failed:', errors);
       return;
     }
 
+    console.log('Form data being submitted:', formData);
     setIsLoading(true);
 
     try {
       const result = await register(formData);
+      console.log('Registration result:', result);
       if (result.success) {
         navigate('/dashboard');
       }
@@ -355,7 +358,7 @@ const Register = () => {
                   value={formData.phone}
                   onChange={handleChange}
                   className={`input-field pl-10 ${errors.phone ? 'border-red-500' : ''}`}
-                  placeholder="Enter your 10-digit phone number"
+                  placeholder="Enter your 10-11 digit phone number"
                 />
                 <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               </div>
