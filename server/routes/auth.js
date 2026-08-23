@@ -24,12 +24,12 @@ router.post('/register', [
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('phone').matches(/^[0-9]{10,11}$/).withMessage('Please enter a valid 10-11 digit phone number'),
   body('userType').isIn(['farmer', 'buyer']).withMessage('User type must be farmer or buyer'),
-  body('address').custom((value) => {
-    if (!value || typeof value !== 'object') throw new Error('Address is required');
-    if (!value.street || !value.street.trim()) throw new Error('Street address is required');
-    if (!value.city || !value.city.trim()) throw new Error('City is required');
-    if (!value.state || !value.state.trim()) throw new Error('State is required');
-    if (!value.pincode || !/^\d{6}$/.test(value.pincode)) throw new Error('Please enter a valid 6-digit pincode');
+  body('address').optional({ nullable: true, checkFalsy: true }).custom((value) => {
+    if (value && typeof value === 'object' && value.pincode && typeof value.pincode === 'string' && value.pincode.trim() && value.pincode.trim() !== '000000') {
+      if (!/^\d{6}$/.test(value.pincode.trim())) {
+        throw new Error('Please enter a valid 6-digit pincode');
+      }
+    }
     return true;
   })
 ], async (req, res) => {
@@ -47,15 +47,22 @@ router.post('/register', [
       return res.status(400).json({ message: 'User already exists with this email' });
     }
 
-    // Hash password before creating (User model pre-save hook will hash again if we use new User())
-    // So we store the plain password in the document and let the pre-save hook hash it once.
+    // Normalize optional address with defaults
+    const userAddress = {
+      street: (address && typeof address === 'object' && address.street) ? String(address.street).trim() : '',
+      city: (address && typeof address === 'object' && address.city) ? String(address.city).trim() : '',
+      state: (address && typeof address === 'object' && address.state) ? String(address.state).trim() : '',
+      pincode: (address && typeof address === 'object' && address.pincode && String(address.pincode).trim()) ? String(address.pincode).trim() : '000000',
+      country: (address && typeof address === 'object' && address.country) ? String(address.country).trim() : 'India'
+    };
+
     const userData = {
       name,
       email: email.toLowerCase(),
       password, // Plain — pre-save hook hashes it
       phone,
       userType,
-      address,
+      address: userAddress,
       isVerified: false,
       isActive: true,
     };
