@@ -255,31 +255,39 @@ const VoiceCommands = () => {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
-      <button
-        onClick={toggleListening}
-        className={`p-4 rounded-full shadow-lg transition-all duration-200 ${
-          isListening
-            ? 'bg-red-500 hover:bg-red-600 animate-pulse'
-            : 'bg-primary-500 hover:bg-primary-600'
-        } text-white`}
-        title={isListening ? 'Stop listening' : 'Start voice commands'}
-      >
-        {isListening ? (
-          <MicOff className="w-6 h-6" />
-        ) : (
-          <Mic className="w-6 h-6" />
-        )}
-      </button>
-
+    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
       {transcript && (
-        <div className="absolute bottom-16 right-0 bg-white rounded-lg shadow-lg p-3 max-w-xs">
-          <div className="flex items-center space-x-2">
-            <Volume2 className="w-4 h-4 text-gray-500" />
-            <span className="text-sm text-gray-700">{transcript}</span>
+        <div className="mb-3 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-emerald-100 p-3.5 max-w-xs animate-fade-in text-slate-800">
+          <div className="flex items-center space-x-2 text-xs font-semibold text-emerald-700 mb-1">
+            <Volume2 className="w-3.5 h-3.5" />
+            <span>Heard Command:</span>
           </div>
+          <p className="text-sm font-bold text-slate-900 capitalize">"{transcript}"</p>
         </div>
       )}
+
+      <button
+        onClick={toggleListening}
+        className={`group relative p-4 rounded-2xl shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 ${
+          isListening
+            ? 'bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-rose-500/30 animate-pulse'
+            : 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-emerald-600/30 hover:shadow-glow'
+        }`}
+        title={isListening ? 'Listening... Click to stop' : 'Voice Assistant (Hindi / English)'}
+        aria-label="Toggle voice commands"
+      >
+        {isListening ? (
+          <div className="flex items-center space-x-2">
+            <MicOff className="w-5 h-5 animate-bounce" />
+            <span className="text-xs font-bold pr-1">Listening...</span>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-2">
+            <Mic className="w-5 h-5" />
+            <span className="text-xs font-bold pr-1 hidden sm:inline">Voice AI</span>
+          </div>
+        )}
+      </button>
     </div>
   );
 };

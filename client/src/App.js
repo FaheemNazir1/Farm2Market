@@ -5,6 +5,8 @@ import { CartProvider } from './contexts/CartContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navbar from './components/Layout/Navbar';
 import Footer from './components/Layout/Footer';
+import ScrollProgressBar from './components/UI/ScrollProgressBar';
+import VoiceCommands from './components/VoiceCommands';
 
 // Pages
 import Home from './pages/Home';
@@ -27,8 +29,14 @@ function App() {
   return (
     <AuthProvider>
       <CartProvider>
-        <div className="min-h-screen flex flex-col">
+        <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-emerald-500 selection:text-white">
+          {/* Top dynamic scroll progress bar */}
+          <ScrollProgressBar />
+          
+          {/* Main Navigation */}
           <Navbar />
+
+          {/* Page Routing */}
           <main className="flex-grow">
             <Routes>
               {/* Public Routes */}
@@ -79,6 +87,11 @@ function App() {
               } />
             </Routes>
           </main>
+
+          {/* Floating Voice Commands Assistant */}
+          <VoiceCommands />
+
+          {/* Modern Footer */}
           <Footer />
         </div>
       </CartProvider>

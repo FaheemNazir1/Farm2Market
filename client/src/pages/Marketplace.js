@@ -1,20 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from 'react-query';
 import { cropsAPI } from '../services/api';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
+import { ScrollReveal } from '../components/UI/ScrollReveal';
 import { 
   Search, 
   Filter, 
-  Heart, 
   ShoppingCart, 
-  Star, 
   MapPin, 
   Calendar,
   Leaf,
-  Award,
-  Truck
+  Sparkles,
+  RotateCcw,
+  SlidersHorizontal,
+  ChevronRight
 } from 'lucide-react';
 import LoadingSpinner from '../components/UI/LoadingSpinner';
 import toast from 'react-hot-toast';
@@ -41,22 +42,24 @@ const Marketplace = () => {
     () => cropsAPI.getCrops({ ...filters, search: searchTerm, page }),
     {
       keepPreviousData: true,
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 5 * 60 * 1000,
     }
   );
 
   const categories = [
-    'Cereals', 'Pulses', 'Oilseeds', 'Vegetables', 'Fruits', 
-    'Spices', 'Medicinal Plants', 'Flowers', 'Others'
+    { name: 'All', value: '', icon: '🌾' },
+    { name: 'Vegetables', value: 'Vegetables', icon: '🥦' },
+    { name: 'Cereals', value: 'Cereals', icon: '🌾' },
+    { name: 'Fruits', value: 'Fruits', icon: '🍎' },
+    { name: 'Pulses', value: 'Pulses', icon: '🫘' },
+    { name: 'Spices', value: 'Spices', icon: '🌶️' },
+    { name: 'Oilseeds', value: 'Oilseeds', icon: '🌻' },
   ];
 
   const states = [
-    'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
-    'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand',
-    'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
-    'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
-    'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
-    'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Delhi', 'Chandigarh'
+    'All States', 'Andhra Pradesh', 'Assam', 'Bihar', 'Delhi', 'Gujarat', 
+    'Haryana', 'Karnataka', 'Madhya Pradesh', 'Maharashtra', 'Punjab', 
+    'Rajasthan', 'Tamil Nadu', 'Uttar Pradesh', 'West Bengal'
   ];
 
   const handleFilterChange = (key, value) => {
@@ -83,6 +86,7 @@ const Marketplace = () => {
       return;
     }
     addToCart(crop, 1);
+    toast.success(`Added ${crop.name} to cart!`);
   };
 
   const formatPrice = (price) => {
@@ -103,103 +107,122 @@ const Marketplace = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Error loading crops</h2>
-          <p className="text-gray-600">Please try again later</p>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="card text-center max-w-md p-8 shadow-xl">
+          <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4 font-bold text-2xl">
+            !
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Error Loading Produce</h2>
+          <p className="text-slate-600 text-sm mb-6">Unable to retrieve crop listings from server.</p>
+          <button onClick={() => window.location.reload()} className="btn-primary w-full">
+            Retry Connection
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center space-y-4">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
-              Fresh Produce Marketplace
-            </h1>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Discover fresh crops directly from farmers across India. 
-              No middlemen, better prices, guaranteed quality.
-            </p>
+    <div className="min-h-screen bg-slate-50/70 pb-20">
+      
+      {/* Header Banner */}
+      <section className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-950 text-white py-12 relative overflow-hidden">
+        <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2">
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Live Produce Catalog</span>
+              </span>
+              <h1 className="text-3xl sm:text-4xl font-black font-heading tracking-tight">
+                Direct Agricultural Marketplace
+              </h1>
+              <p className="text-emerald-100/80 text-sm sm:text-base max-w-2xl">
+                Browse freshly harvested crops directly from verified Indian farmers. No middlemen, transparent pricing, and quality guarantee.
+              </p>
+            </div>
+
+            {/* Quick Search in Banner */}
+            <form onSubmit={handleSearch} className="w-full md:w-80 relative">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search crops, varieties..."
+                className="w-full pl-10 pr-4 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl text-white placeholder-emerald-200/60 focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm shadow-inner"
+              />
+              <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-emerald-300" />
+            </form>
+          </div>
+
+          {/* Quick Category Chips */}
+          <div className="flex items-center space-x-2 overflow-x-auto pt-4 pb-1 scrollbar-hide">
+            {categories.map((cat) => {
+              const isSelected = filters.category === cat.value;
+              return (
+                <button
+                  key={cat.name}
+                  onClick={() => handleFilterChange('category', cat.value)}
+                  className={`flex-shrink-0 inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                    isSelected
+                      ? 'bg-amber-400 text-slate-900 shadow-md shadow-amber-400/20 scale-105'
+                      : 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
+                  }`}
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.name}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Main Content Area */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        
         <div className="flex flex-col lg:flex-row gap-8">
+          
           {/* Filters Sidebar */}
-          <div className="lg:w-64 flex-shrink-0">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sticky top-24">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
+          <aside className="lg:w-72 flex-shrink-0">
+            <div className="card sticky top-24 space-y-6">
+              
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center space-x-2">
+                  <SlidersHorizontal className="w-5 h-5 text-emerald-600" />
+                  <h3 className="font-bold text-slate-900 font-heading text-lg">Filter Listings</h3>
+                </div>
                 <button
                   onClick={() => setShowFilters(!showFilters)}
-                  className="lg:hidden p-2 text-gray-400 hover:text-gray-600"
+                  className="lg:hidden p-2 text-slate-500 hover:text-slate-800"
                 >
                   <Filter className="w-5 h-5" />
                 </button>
               </div>
 
               <div className={`space-y-6 ${showFilters ? 'block' : 'hidden lg:block'}`}>
-                {/* Search */}
+                
+                {/* State Location */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Search
-                  </label>
-                  <form onSubmit={handleSearch} className="relative">
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="input-field pr-10"
-                      placeholder="Search crops..."
-                    />
-                    <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  </form>
-                </div>
-
-                {/* Category */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Category
-                  </label>
-                  <select
-                    value={filters.category}
-                    onChange={(e) => handleFilterChange('category', e.target.value)}
-                    className="input-field"
-                  >
-                    <option value="">All Categories</option>
-                    {categories.map(category => (
-                      <option key={category} value={category}>{category}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* State */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    State
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    Region / State
                   </label>
                   <select
                     value={filters.state}
-                    onChange={(e) => handleFilterChange('state', e.target.value)}
-                    className="input-field"
+                    onChange={(e) => handleFilterChange('state', e.target.value === 'All States' ? '' : e.target.value)}
+                    className="input-field text-sm"
                   >
-                    <option value="">All States</option>
                     {states.map(state => (
-                      <option key={state} value={state}>{state}</option>
+                      <option key={state} value={state === 'All States' ? '' : state}>{state}</option>
                     ))}
                   </select>
                 </div>
 
                 {/* Price Range */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Price Range (₹)
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    Price Range (₹/unit)
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <input
@@ -207,35 +230,38 @@ const Marketplace = () => {
                       value={filters.minPrice}
                       onChange={(e) => handleFilterChange('minPrice', e.target.value)}
                       className="input-field text-sm"
-                      placeholder="Min"
+                      placeholder="Min ₹"
                     />
                     <input
                       type="number"
                       value={filters.maxPrice}
                       onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
                       className="input-field text-sm"
-                      placeholder="Max"
+                      placeholder="Max ₹"
                     />
                   </div>
                 </div>
 
-                {/* Organic */}
-                <div>
-                  <label className="flex items-center">
+                {/* Organic Checkbox */}
+                <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl">
+                  <label className="flex items-center space-x-2.5 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={filters.organic}
                       onChange={(e) => handleFilterChange('organic', e.target.checked)}
-                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                      className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
                     />
-                    <span className="ml-2 text-sm text-gray-700">Organic Only</span>
+                    <div className="flex items-center space-x-1 text-sm font-semibold text-emerald-900">
+                      <Leaf className="w-4 h-4 text-emerald-600" />
+                      <span>Certified Organic Only</span>
+                    </div>
                   </label>
                 </div>
 
-                {/* Sort */}
+                {/* Sorting */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sort By
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    Sort Order
                   </label>
                   <select
                     value={`${filters.sortBy}-${filters.sortOrder}`}
@@ -244,17 +270,17 @@ const Marketplace = () => {
                       handleFilterChange('sortBy', sortBy);
                       handleFilterChange('sortOrder', sortOrder);
                     }}
-                    className="input-field"
+                    className="input-field text-sm"
                   >
-                    <option value="createdAt-desc">Newest First</option>
-                    <option value="createdAt-asc">Oldest First</option>
+                    <option value="createdAt-desc">Newest Listings First</option>
+                    <option value="createdAt-asc">Oldest Listings First</option>
                     <option value="price.perUnit-asc">Price: Low to High</option>
                     <option value="price.perUnit-desc">Price: High to Low</option>
-                    <option value="views-desc">Most Popular</option>
+                    <option value="views-desc">Most Viewed</option>
                   </select>
                 </div>
 
-                {/* Clear Filters */}
+                {/* Reset Filters */}
                 <button
                   onClick={() => {
                     setFilters({
@@ -269,169 +295,170 @@ const Marketplace = () => {
                     setSearchTerm('');
                     setPage(1);
                   }}
-                  className="w-full btn-outline text-sm"
+                  className="w-full btn-secondary text-xs py-2.5 flex items-center justify-center space-x-1.5"
                 >
-                  Clear Filters
+                  <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Reset All Filters</span>
                 </button>
-              </div>
-            </div>
-          </div>
 
-          {/* Main Content */}
-          <div className="flex-1">
+              </div>
+
+            </div>
+          </aside>
+
+          {/* Listings Grid */}
+          <main className="flex-1">
+            
             {/* Results Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">
-                  {cropsData?.pagination?.total || 0} crops found
-                </h2>
-                <p className="text-gray-600">
-                  Showing {((page - 1) * 12) + 1}-{Math.min(page * 12, cropsData?.pagination?.total || 0)} results
+                <p className="text-sm font-bold text-slate-900">
+                  {cropsData?.pagination?.total || 0} Crops Available
+                </p>
+                <p className="text-xs text-slate-500">
+                  Showing freshly sourced farm produce
                 </p>
               </div>
+
+              {filters.organic && (
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 flex items-center space-x-1">
+                  <Leaf className="w-3 h-3" />
+                  <span>Organic Filter Active</span>
+                </span>
+              )}
             </div>
 
-            {/* Loading State */}
+            {/* Loading Skeleton or Cards */}
             {isLoading ? (
-              <div className="flex justify-center py-12">
+              <div className="flex justify-center py-20">
                 <LoadingSpinner size="large" />
               </div>
             ) : (
               <>
-                {/* Crops Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {cropsData?.crops?.map((crop) => (
-                    <div key={crop._id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-                      {/* Image */}
-                      <div className="aspect-w-16 aspect-h-9 bg-gray-200">
-                        {crop.images && crop.images.length > 0 ? (
+                {/* Cards Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {cropsData?.crops?.map((crop, index) => (
+                    <ScrollReveal key={crop._id} animation="fade-up" delay={index * 60}>
+                      <div className="card-hover p-0 overflow-hidden bg-white flex flex-col justify-between h-full group">
+                        
+                        {/* Image Header with Badges */}
+                        <div className="relative h-48 bg-slate-100 overflow-hidden">
                           <img
-                            src={crop.images[0].url}
-                            alt={crop.images[0].alt || crop.name}
-                            className="w-full h-48 object-cover"
+                            src={crop.images?.[0]?.url || '/uploads/crops/1760276060831-671568258.jpeg'}
+                            alt={crop.name}
+                            className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=600&q=80';
+                            }}
                           />
-                        ) : (
-                          <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
-                            <span className="text-gray-400">No Image</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Content */}
-                      <div className="p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <h3 className="text-lg font-semibold text-gray-900 line-clamp-1">
-                            {crop.name}
-                          </h3>
-                          <button className="text-gray-400 hover:text-red-500 transition-colors">
-                            <Heart className="w-5 h-5" />
-                          </button>
-                        </div>
-
-                        <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                          {crop.description}
-                        </p>
-
-                        <div className="flex items-center space-x-4 text-sm text-gray-500 mb-3">
-                          <div className="flex items-center space-x-1">
-                            <MapPin className="w-4 h-4" />
-                            <span>{crop.location.state}</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <Calendar className="w-4 h-4" />
-                            <span>{formatDate(crop.harvestDate)}</span>
-                          </div>
-                        </div>
-
-                        {/* Quality Badges */}
-                        <div className="flex items-center space-x-2 mb-3">
-                          {crop.quality?.organic && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              <Leaf className="w-3 h-3 mr-1" />
-                              Organic
-                            </span>
-                          )}
-                          {crop.quality?.certified && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              <Award className="w-3 h-3 mr-1" />
-                              Certified
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Price and Quantity */}
-                        <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <div className="text-xl font-bold text-primary-600">
-                              {formatPrice(crop.price.perUnit)}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              per {crop.quantity.unit}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm text-gray-900 font-medium">
-                              {crop.quantity.value} {crop.quantity.unit}
-                            </div>
-                            <div className="text-sm text-gray-500">available</div>
-                          </div>
-                        </div>
-
-                        {/* Farmer Info */}
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                              <span className="text-primary-600 font-semibold text-sm">
-                                {crop.farmer.name?.charAt(0)}
+                          
+                          {/* Quality Badge */}
+                          <div className="absolute top-3 left-3 flex flex-col gap-1">
+                            {crop.quality?.organic && (
+                              <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-700/90 text-white backdrop-blur-md shadow-md flex items-center space-x-1">
+                                <Leaf className="w-3 h-3" />
+                                <span>Organic</span>
                               </span>
+                            )}
+                          </div>
+
+                          {/* Harvest Date Tag */}
+                          <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-lg bg-slate-900/80 text-white text-[11px] font-semibold backdrop-blur-md flex items-center space-x-1">
+                            <Calendar className="w-3 h-3 text-emerald-400" />
+                            <span>Harvest: {formatDate(crop.harvestDate)}</span>
+                          </div>
+
+                          {/* Quantity Available */}
+                          <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-white/95 text-slate-900 text-xs font-black shadow-md border border-slate-200">
+                            {crop.quantity?.value} {crop.quantity?.unit}
+                          </div>
+                        </div>
+
+                        {/* Card Body */}
+                        <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                          
+                          <div>
+                            <div className="flex justify-between items-start mb-1">
+                              <h3 className="font-bold text-slate-900 text-lg font-heading group-hover:text-emerald-700 transition-colors line-clamp-1">
+                                {crop.name}
+                              </h3>
                             </div>
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">
-                                {crop.farmer.name}
+
+                            <p className="text-xs text-slate-600 line-clamp-2 mb-3">
+                              {crop.description}
+                            </p>
+
+                            {/* Location & Farmer Info */}
+                            <div className="flex items-center justify-between text-xs text-slate-500 py-2 border-y border-slate-100">
+                              <div className="flex items-center space-x-1 text-slate-600">
+                                <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>{crop.location?.district || crop.location?.state}, {crop.location?.state}</span>
                               </div>
-                              <div className="flex items-center space-x-1">
-                                <Star className="w-3 h-3 text-yellow-400 fill-current" />
-                                <span className="text-xs text-gray-500">
-                                  {crop.farmer.rating?.average?.toFixed(1) || 'New'}
+                              <div className="flex items-center space-x-1 font-semibold text-slate-700">
+                                <span>👨‍🌾 {crop.farmer?.name || 'Local Farmer'}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Price and Cart Buttons */}
+                          <div className="pt-2">
+                            <div className="flex items-baseline justify-between mb-3">
+                              <div>
+                                <span className="text-2xl font-black text-emerald-700 font-heading">
+                                  {formatPrice(crop.price?.perUnit)}
+                                </span>
+                                <span className="text-xs font-medium text-slate-500 ml-1">
+                                  / {crop.quantity?.unit}
                                 </span>
                               </div>
                             </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <Link
+                                to={`/crop/${crop._id}`}
+                                className="btn-secondary text-xs py-2 justify-center font-bold"
+                              >
+                                <span>Details</span>
+                                <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+                              </Link>
+
+                              {isBuyer ? (
+                                <button
+                                  onClick={() => handleAddToCart(crop)}
+                                  disabled={!canAddToCart(crop)}
+                                  className="btn-primary text-xs py-2 justify-center font-bold disabled:opacity-50"
+                                >
+                                  <ShoppingCart className="w-3.5 h-3.5 mr-1" />
+                                  <span>Add</span>
+                                </button>
+                              ) : (
+                                <Link
+                                  to={`/crop/${crop._id}`}
+                                  className="btn-primary text-xs py-2 justify-center font-bold"
+                                >
+                                  <span>Buy Now</span>
+                                </Link>
+                              )}
+                            </div>
                           </div>
+
                         </div>
 
-                        {/* Actions */}
-                        <div className="flex space-x-2">
-                          <Link
-                            to={`/crop/${crop._id}`}
-                            className="flex-1 btn-outline text-center text-sm py-2"
-                          >
-                            View Details
-                          </Link>
-                          {isBuyer && (
-                            <button
-                              onClick={() => handleAddToCart(crop)}
-                              disabled={!canAddToCart(crop)}
-                              className="flex-1 btn-primary text-sm py-2 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <ShoppingCart className="w-4 h-4 mr-1" />
-                              Add to Cart
-                            </button>
-                          )}
-                        </div>
                       </div>
-                    </div>
+                    </ScrollReveal>
                   ))}
                 </div>
 
                 {/* Empty State */}
                 {cropsData?.crops?.length === 0 && (
-                  <div className="text-center py-12">
-                    <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Search className="w-12 h-12 text-gray-400" />
+                  <div className="card text-center py-16 max-w-lg mx-auto space-y-4">
+                    <div className="w-20 h-20 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto text-3xl">
+                      🔍
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No crops found</h3>
-                    <p className="text-gray-600 mb-4">
-                      Try adjusting your search criteria or browse all crops
+                    <h3 className="text-xl font-bold text-slate-900">No Produce Matches Your Search</h3>
+                    <p className="text-slate-600 text-sm">
+                      Try expanding your price range or clearing active filters to see all available listings.
                     </p>
                     <button
                       onClick={() => {
@@ -446,55 +473,21 @@ const Marketplace = () => {
                         });
                         setSearchTerm('');
                       }}
-                      className="btn-primary"
+                      className="btn-primary text-sm"
                     >
-                      Clear Filters
-                    </button>
-                  </div>
-                )}
-
-                {/* Pagination */}
-                {cropsData?.pagination?.pages > 1 && (
-                  <div className="flex items-center justify-center space-x-2 mt-8">
-                    <button
-                      onClick={() => setPage(page - 1)}
-                      disabled={page === 1}
-                      className="btn-outline disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Previous
-                    </button>
-                    
-                    {Array.from({ length: Math.min(5, cropsData.pagination.pages) }, (_, i) => {
-                      const pageNum = i + 1;
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setPage(pageNum)}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium ${
-                            page === pageNum
-                              ? 'bg-primary-600 text-white'
-                              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-                    
-                    <button
-                      onClick={() => setPage(page + 1)}
-                      disabled={page === cropsData.pagination.pages}
-                      className="btn-outline disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Next
+                      Clear All Filters
                     </button>
                   </div>
                 )}
               </>
             )}
-          </div>
+
+          </main>
+
         </div>
+
       </div>
+
     </div>
   );
 };

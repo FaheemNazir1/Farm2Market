@@ -1,8 +1,9 @@
 const http = require('http');
+require('dotenv').config();
 
 const options = {
   hostname: 'localhost',
-  port: process.env.PORT || 5000,
+  port: process.env.PORT || 5002,
   path: '/api/health',
   method: 'GET',
   timeout: 2000

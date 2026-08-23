@@ -6,9 +6,7 @@ import {
   TrendingUp, 
   Shield, 
   Award,
-  Heart,
   Lightbulb,
-  Globe,
   CheckCircle
 } from 'lucide-react';
 
@@ -210,34 +208,9 @@ const About = () => {
                 The idea was to create a platform that connects farmers directly with buyers, 
                 ensuring fair prices for farmers and fresh produce for buyers.
               </p>
-              <p className="text-lg text-gray-600 leading-relaxed">
-                Today, we're proud to be part of Smart India Hackathon 2025, working towards 
-                a more sustainable and equitable agricultural future.
-              </p>
+              
             </div>
-            <div className="relative">
-              <div className="bg-gradient-to-br from-secondary-100 to-secondary-200 rounded-2xl p-8">
-                <div className="text-center space-y-4">
-                  <div className="w-16 h-16 bg-secondary-500 rounded-full flex items-center justify-center mx-auto">
-                    <Heart className="w-8 h-8 text-white" />
-                  </div>
-                  <h3 className="text-2xl font-bold text-gray-900">Smart India Hackathon 2025</h3>
-                  <p className="text-gray-600">
-                    Proud participants working towards transforming agriculture through technology
-                  </p>
-                  <div className="flex items-center justify-center space-x-4 text-sm text-gray-600">
-                    <div className="flex items-center space-x-1">
-                      <Globe className="w-4 h-4" />
-                      <span>India-wide</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Award className="w-4 h-4" />
-                      <span>Innovation</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            
           </div>
         </div>
       </section>

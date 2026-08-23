@@ -1,13 +1,23 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Test Order Creation</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Order Creation - Farm2Market</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 24px; max-width: 800px; margin: 0 auto; line-height: 1.6; }
+        button { background: #16a34a; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; margin-right: 8px; }
+        button:hover { background: #15803d; }
+        #result { margin-top: 20px; padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
+        pre { background: #1e293b; color: #f8fafc; padding: 12px; border-radius: 6px; overflow-x: auto; }
+    </style>
 </head>
 <body>
     <h1>Test Order Creation API</h1>
+    <p>Use these buttons to quickly test backend order creation without the UI.</p>
     <button onclick="testLogin()">1. Login as Buyer</button>
     <button onclick="testOrder()">2. Test Order Creation</button>
-    <div id="result"></div>
+    <div id="result">Waiting for action...</div>
 
     <script>
         let authToken = '';
@@ -61,7 +71,7 @@
             
             const orderData = {
                 items: [{
-                    cropId: "1", // Assuming crop with ID "1" exists
+                    cropId: "1",
                     quantity: 2
                 }],
                 shippingAddress: {
