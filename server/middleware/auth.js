@@ -1,23 +1,34 @@
 const jwt = require('jsonwebtoken');
-// const User = require('../models/User');
-const { users } = require('../db');
+const User = require('../models/User');
 
 const auth = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
-    
+
     if (!token) {
       return res.status(401).json({ message: 'Access denied. No token provided.' });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
-    const user = users.find(u => u.id === decoded.id);
+
+    // Look up user in MongoDB — supports both string ids (legacy) and ObjectIds
+    let user = null;
+    try {
+      user = await User.findById(decoded.id).lean();
+    } catch (e) {
+      // decoded.id might not be a valid ObjectId in legacy tokens — treat as not found
+    }
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid token.' });
     }
 
-    req.user = user;
+    // Normalize: expose `id` as a string for all route handlers
+    req.user = {
+      ...user,
+      id: user._id.toString(),
+    };
+
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
@@ -32,8 +43,8 @@ const authorize = (...roles) => {
     }
 
     if (!roles.includes(req.user.userType)) {
-      return res.status(403).json({ 
-        message: `Access denied. Required role: ${roles.join(' or ')}` 
+      return res.status(403).json({
+        message: `Access denied. Required role: ${roles.join(' or ')}`
       });
     }
 
@@ -44,16 +55,19 @@ const authorize = (...roles) => {
 const optionalAuth = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
-    
+
     if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
-      const user = users.find(u => u.id === decoded.id);
-
-      if (user) {
-        req.user = user;
+      try {
+        const user = await User.findById(decoded.id).lean();
+        if (user) {
+          req.user = { ...user, id: user._id.toString() };
+        }
+      } catch (e) {
+        // Not a valid ObjectId — skip optional auth
       }
     }
-    
+
     next();
   } catch (error) {
     // Continue without authentication for optional auth

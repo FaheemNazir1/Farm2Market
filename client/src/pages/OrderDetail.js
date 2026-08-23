@@ -9,7 +9,6 @@ import {
   Package, 
   Star, 
   MapPin, 
-  Calendar,
   Clock,
   CheckCircle,
   AlertCircle,
@@ -30,7 +29,7 @@ const OrderDetail = () => {
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
 
-  const { user, isFarmer, isBuyer } = useAuth();
+  const { isFarmer } = useAuth();
 
   const { data: orderData, isLoading, error } = useQuery(
     ['order', id],
@@ -70,14 +69,6 @@ const OrderDetail = () => {
       currency: 'INR',
       maximumFractionDigits: 0
     }).format(price);
-  };
-
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
   };
 
   const formatDateTime = (date) => {

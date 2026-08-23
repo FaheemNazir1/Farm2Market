@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
-import { Eye, EyeOff, User, Mail, Phone, MapPin, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, User, Mail, Phone, ArrowRight, Sprout } from 'lucide-react';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 
 const Register = () => {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const userType = searchParams.get('type') || 'farmer';
 
@@ -38,30 +40,31 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
-  const { register, isAuthenticated } = useAuth();
+  const { register, loginWithGoogle, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  const handleGoogleSignUp = async () => {
+    setIsGoogleLoading(true);
+    try {
+      const result = await loginWithGoogle(formData.userType);
+      if (result.success) {
+        navigate('/dashboard');
+      }
+    } catch (error) {
+      console.error('Google sign-up error:', error);
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (isAuthenticated) {
       navigate('/dashboard');
     }
   }, [isAuthenticated, navigate]);
-
-  const states = [
-    'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
-    'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand',
-    'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
-    'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
-    'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
-    'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Delhi', 'Chandigarh'
-  ];
-
-  const businessTypes = [
-    'Restaurant', 'Hotel', 'Catering', 'Retail Store', 'Supermarket',
-    'Food Processing', 'Export', 'Wholesale', 'Other'
-  ];
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -100,7 +103,6 @@ const Register = () => {
       }));
     }
 
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
@@ -112,60 +114,20 @@ const Register = () => {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
-    }
-
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
-    }
-
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
-
+    if (!formData.name.trim()) newErrors.name = 'Name is required';
+    if (!formData.email.trim()) newErrors.email = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Invalid email address';
+    
+    if (!formData.password) newErrors.password = 'Password is required';
+    else if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
+    
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
     }
-
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
-    } else if (!/^[0-9]{10,11}$/.test(formData.phone)) {
-      newErrors.phone = 'Invalid phone number';
-    }
-
-    if (!formData.address.street.trim()) {
-      newErrors['address.street'] = 'Street address is required';
-    }
-
-    if (!formData.address.city.trim()) {
-      newErrors['address.city'] = 'City is required';
-    }
-
-    if (!formData.address.state) {
-      newErrors['address.state'] = 'State is required';
-    }
-
-    if (!formData.address.pincode.trim()) {
-      newErrors['address.pincode'] = 'Pincode is required';
-    } else if (!/^\d{6}$/.test(formData.address.pincode)) {
-      newErrors['address.pincode'] = 'Invalid pincode';
-    }
-
-    if (formData.userType === 'farmer') {
-      if (!formData.farmDetails.farmName.trim()) {
-        newErrors['farmDetails.farmName'] = 'Farm name is required';
-      }
-    }
-
-    if (formData.userType === 'buyer') {
-      if (!formData.businessDetails.businessName.trim()) {
-        newErrors['businessDetails.businessName'] = 'Business name is required';
-      }
+    
+    if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
+    else if (!/^\d{10}$/.test(formData.phone.replace(/\D/g, ''))) {
+      newErrors.phone = 'Invalid 10-digit phone number';
     }
 
     setErrors(newErrors);
@@ -175,17 +137,12 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validateForm()) {
-      console.log('Form validation failed:', errors);
-      return;
-    }
-
-    console.log('Form data being submitted:', formData);
+    if (!validateForm()) return;
+    
     setIsLoading(true);
 
     try {
       const result = await register(formData);
-      console.log('Registration result:', result);
       if (result.success) {
         navigate('/dashboard');
       }
@@ -197,423 +154,250 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl">
         <div className="flex justify-center">
-          <div className="w-12 h-12 bg-primary-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-xl">F</span>
-          </div>
+          <Link to="/" className="flex items-center space-x-2 group">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+              <Sprout className="w-7 h-7 text-white" />
+            </div>
+            <span className="text-3xl font-black text-slate-900 font-heading">
+              Farm<span className="text-emerald-600">2</span>Market
+            </span>
+          </Link>
         </div>
-        <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
-          Join Farm2Market
+        <h2 className="mt-6 text-center text-3xl font-black text-slate-900 font-heading">
+          {t('auth.register', 'Create Account')}
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Create your account to start trading
+        <p className="mt-2 text-center text-sm text-slate-600">
+          {t('auth.registerSubtitle', "Join India's fastest growing agricultural network")}
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-2xl">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {/* User Type Selection */}
-          <div className="mb-8">
-            <label className="block text-sm font-medium text-gray-700 mb-4">
-              I want to join as:
+        <div className="card bg-white py-8 px-6 shadow-xl sm:rounded-3xl sm:px-10 border border-slate-200/80">
+          
+          {/* User Type Selection Cards */}
+          <div className="mb-6 p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
+              {t('auth.userType', 'I want to join as:')}
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setFormData(prev => ({ ...prev, userType: 'farmer' }))}
-                className={`p-4 border-2 rounded-lg text-center transition-colors ${
+                className={`p-4 rounded-2xl border-2 text-left transition-all ${
                   formData.userType === 'farmer'
-                    ? 'border-primary-600 bg-primary-50 text-primary-700'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500/20'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
-                <div className="font-semibold">Farmer</div>
-                <div className="text-sm text-gray-600">Sell your crops directly</div>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl">🌾</span>
+                  {formData.userType === 'farmer' && (
+                    <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black">✓</span>
+                  )}
+                </div>
+                <div className="font-bold text-slate-900 text-sm mt-2">{t('nav.roleFarmer', 'Farmer')}</div>
+                <div className="text-xs text-slate-500 mt-0.5">{t('auth.farmerDesc', 'List crops, receive fair pricing, and connect with direct buyers')}</div>
               </button>
+
               <button
                 type="button"
                 onClick={() => setFormData(prev => ({ ...prev, userType: 'buyer' }))}
-                className={`p-4 border-2 rounded-lg text-center transition-colors ${
+                className={`p-4 rounded-2xl border-2 text-left transition-all ${
                   formData.userType === 'buyer'
-                    ? 'border-primary-600 bg-primary-50 text-primary-700'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500/20'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
-                <div className="font-semibold">Buyer</div>
-                <div className="text-sm text-gray-600">Buy fresh produce</div>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl">🛒</span>
+                  {formData.userType === 'buyer' && (
+                    <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black">✓</span>
+                  )}
+                </div>
+                <div className="font-bold text-slate-900 text-sm mt-2">{t('nav.roleBuyer', 'Buyer')}</div>
+                <div className="text-xs text-slate-500 mt-0.5">{t('auth.buyerDesc', 'Source fresh crops directly from farmers with transparent pricing')}</div>
+              </button>
+            </div>
+
+            {/* Google Fast Sign Up with Selected Role */}
+            <div className="mt-4 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={handleGoogleSignUp}
+                disabled={isLoading || isGoogleLoading}
+                className="w-full flex items-center justify-center px-4 py-3 border border-slate-300 rounded-xl shadow-sm bg-white text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all"
+              >
+                {isGoogleLoading ? (
+                  <LoadingSpinner size="small" />
+                ) : (
+                  <>
+                    <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
+                      <path
+                        fill="#4285F4"
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                      />
+                    </svg>
+                    <span>
+                      {t('auth.signUpGoogle', 'Sign up with Google')} ({formData.userType === 'farmer' ? t('nav.roleFarmer', 'Farmer') : t('nav.roleBuyer', 'Buyer')})
+                    </span>
+                  </>
+                )}
               </button>
             </div>
           </div>
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            {/* Basic Information */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Form */}
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                  Full Name *
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  {t('auth.name', 'Full Name')} *
                 </label>
-                <div className="mt-1 relative">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-4 w-4 text-slate-400" />
+                  </div>
                   <input
-                    id="name"
                     name="name"
                     type="text"
                     required
                     value={formData.name}
                     onChange={handleChange}
-                    className={`input-field pl-10 ${errors.name ? 'border-red-500' : ''}`}
-                    placeholder="Enter your full name"
+                    className="input-field pl-9 text-sm"
+                    placeholder="Your Name"
                   />
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                 </div>
-                {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
               </div>
 
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Email Address *
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  {t('auth.email', 'Email Address')} *
                 </label>
-                <div className="mt-1 relative">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="h-4 w-4 text-slate-400" />
+                  </div>
                   <input
-                    id="email"
                     name="email"
                     type="email"
                     required
                     value={formData.email}
                     onChange={handleChange}
-                    className={`input-field pl-10 ${errors.email ? 'border-red-500' : ''}`}
-                    placeholder="Enter your email"
+                    className="input-field pl-9 text-sm"
+                    placeholder="you@example.com"
                   />
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                 </div>
-                {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                  Password *
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  {t('auth.password', 'Password')} *
                 </label>
-                <div className="mt-1 relative">
+                <div className="relative">
                   <input
-                    id="password"
                     name="password"
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={formData.password}
                     onChange={handleChange}
-                    className={`input-field pl-10 pr-10 ${errors.password ? 'border-red-500' : ''}`}
-                    placeholder="Create a password"
+                    className="input-field pr-10 text-sm"
+                    placeholder="••••••••"
                   />
                   <button
                     type="button"
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
                     onClick={() => setShowPassword(!showPassword)}
                   >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    {showPassword ? <EyeOff className="h-4 w-4 text-slate-400" /> : <Eye className="h-4 w-4 text-slate-400" />}
                   </button>
                 </div>
-                {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
               </div>
 
               <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                  Confirm Password *
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  {t('auth.confirmPassword', 'Confirm Password')} *
                 </label>
-                <div className="mt-1 relative">
+                <div className="relative">
                   <input
-                    id="confirmPassword"
                     name="confirmPassword"
                     type={showConfirmPassword ? 'text' : 'password'}
                     required
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className={`input-field pl-10 pr-10 ${errors.confirmPassword ? 'border-red-500' : ''}`}
-                    placeholder="Confirm your password"
+                    className="input-field pr-10 text-sm"
+                    placeholder="••••••••"
                   />
                   <button
                     type="button"
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   >
-                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4 text-slate-400" /> : <Eye className="h-4 w-4 text-slate-400" />}
                   </button>
                 </div>
-                {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
               </div>
             </div>
 
             <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                Phone Number *
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                {t('auth.phone', 'Phone Number')} *
               </label>
-              <div className="mt-1 relative">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Phone className="h-4 w-4 text-slate-400" />
+                </div>
                 <input
-                  id="phone"
                   name="phone"
                   type="tel"
                   required
                   value={formData.phone}
                   onChange={handleChange}
-                  className={`input-field pl-10 ${errors.phone ? 'border-red-500' : ''}`}
-                  placeholder="Enter your 10-11 digit phone number"
+                  className="input-field pl-9 text-sm"
+                  placeholder="9876543210"
                 />
-                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              </div>
-              {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
-            </div>
-
-            {/* Address */}
-            <div className="border-t pt-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Address Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2">
-                  <label htmlFor="address.street" className="block text-sm font-medium text-gray-700">
-                    Street Address *
-                  </label>
-                  <div className="mt-1 relative">
-                    <input
-                      id="address.street"
-                      name="address.street"
-                      type="text"
-                      required
-                      value={formData.address.street}
-                      onChange={handleChange}
-                      className={`input-field pl-10 ${errors['address.street'] ? 'border-red-500' : ''}`}
-                      placeholder="Enter your street address"
-                    />
-                    <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  </div>
-                  {errors['address.street'] && <p className="mt-1 text-sm text-red-600">{errors['address.street']}</p>}
-                </div>
-
-                <div>
-                  <label htmlFor="address.city" className="block text-sm font-medium text-gray-700">
-                    City *
-                  </label>
-                  <input
-                    id="address.city"
-                    name="address.city"
-                    type="text"
-                    required
-                    value={formData.address.city}
-                    onChange={handleChange}
-                    className={`input-field ${errors['address.city'] ? 'border-red-500' : ''}`}
-                    placeholder="Enter your city"
-                  />
-                  {errors['address.city'] && <p className="mt-1 text-sm text-red-600">{errors['address.city']}</p>}
-                </div>
-
-                <div>
-                  <label htmlFor="address.state" className="block text-sm font-medium text-gray-700">
-                    State *
-                  </label>
-                  <select
-                    id="address.state"
-                    name="address.state"
-                    required
-                    value={formData.address.state}
-                    onChange={handleChange}
-                    className={`input-field ${errors['address.state'] ? 'border-red-500' : ''}`}
-                  >
-                    <option value="">Select your state</option>
-                    {states.map(state => (
-                      <option key={state} value={state}>{state}</option>
-                    ))}
-                  </select>
-                  {errors['address.state'] && <p className="mt-1 text-sm text-red-600">{errors['address.state']}</p>}
-                </div>
-
-                <div>
-                  <label htmlFor="address.pincode" className="block text-sm font-medium text-gray-700">
-                    Pincode *
-                  </label>
-                  <input
-                    id="address.pincode"
-                    name="address.pincode"
-                    type="text"
-                    required
-                    value={formData.address.pincode}
-                    onChange={handleChange}
-                    className={`input-field ${errors['address.pincode'] ? 'border-red-500' : ''}`}
-                    placeholder="Enter 6-digit pincode"
-                  />
-                  {errors['address.pincode'] && <p className="mt-1 text-sm text-red-600">{errors['address.pincode']}</p>}
-                </div>
               </div>
             </div>
 
-            {/* Farmer Specific Fields */}
-            {formData.userType === 'farmer' && (
-              <div className="border-t pt-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Farm Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label htmlFor="farmDetails.farmName" className="block text-sm font-medium text-gray-700">
-                      Farm Name *
-                    </label>
-                    <input
-                      id="farmDetails.farmName"
-                      name="farmDetails.farmName"
-                      type="text"
-                      required
-                      value={formData.farmDetails.farmName}
-                      onChange={handleChange}
-                      className={`input-field ${errors['farmDetails.farmName'] ? 'border-red-500' : ''}`}
-                      placeholder="Enter your farm name"
-                    />
-                    {errors['farmDetails.farmName'] && <p className="mt-1 text-sm text-red-600">{errors['farmDetails.farmName']}</p>}
-                  </div>
-
-                  <div>
-                    <label htmlFor="farmDetails.farmSize" className="block text-sm font-medium text-gray-700">
-                      Farm Size
-                    </label>
-                    <input
-                      id="farmDetails.farmSize"
-                      name="farmDetails.farmSize"
-                      type="text"
-                      value={formData.farmDetails.farmSize}
-                      onChange={handleChange}
-                      className="input-field"
-                      placeholder="e.g., 5 acres, 2 hectares"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="farmDetails.farmingExperience" className="block text-sm font-medium text-gray-700">
-                      Years of Experience
-                    </label>
-                    <input
-                      id="farmDetails.farmingExperience"
-                      name="farmDetails.farmingExperience"
-                      type="number"
-                      value={formData.farmDetails.farmingExperience}
-                      onChange={handleChange}
-                      className="input-field"
-                      placeholder="Enter years of experience"
-                      min="0"
-                    />
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      id="farmDetails.organicCertified"
-                      name="farmDetails.organicCertified"
-                      type="checkbox"
-                      checked={formData.farmDetails.organicCertified}
-                      onChange={handleChange}
-                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="farmDetails.organicCertified" className="ml-2 block text-sm text-gray-900">
-                      Organic Certified
-                    </label>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Buyer Specific Fields */}
-            {formData.userType === 'buyer' && (
-              <div className="border-t pt-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Business Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label htmlFor="businessDetails.businessName" className="block text-sm font-medium text-gray-700">
-                      Business Name *
-                    </label>
-                    <input
-                      id="businessDetails.businessName"
-                      name="businessDetails.businessName"
-                      type="text"
-                      required
-                      value={formData.businessDetails.businessName}
-                      onChange={handleChange}
-                      className={`input-field ${errors['businessDetails.businessName'] ? 'border-red-500' : ''}`}
-                      placeholder="Enter your business name"
-                    />
-                    {errors['businessDetails.businessName'] && <p className="mt-1 text-sm text-red-600">{errors['businessDetails.businessName']}</p>}
-                  </div>
-
-                  <div>
-                    <label htmlFor="businessDetails.businessType" className="block text-sm font-medium text-gray-700">
-                      Business Type
-                    </label>
-                    <select
-                      id="businessDetails.businessType"
-                      name="businessDetails.businessType"
-                      value={formData.businessDetails.businessType}
-                      onChange={handleChange}
-                      className="input-field"
-                    >
-                      <option value="">Select business type</option>
-                      {businessTypes.map(type => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label htmlFor="businessDetails.gstNumber" className="block text-sm font-medium text-gray-700">
-                      GST Number
-                    </label>
-                    <input
-                      id="businessDetails.gstNumber"
-                      name="businessDetails.gstNumber"
-                      type="text"
-                      value={formData.businessDetails.gstNumber}
-                      onChange={handleChange}
-                      className="input-field"
-                      placeholder="Enter GST number (optional)"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="businessDetails.licenseNumber" className="block text-sm font-medium text-gray-700">
-                      License Number
-                    </label>
-                    <input
-                      id="businessDetails.licenseNumber"
-                      name="businessDetails.licenseNumber"
-                      type="text"
-                      value={formData.businessDetails.licenseNumber}
-                      onChange={handleChange}
-                      className="input-field"
-                      placeholder="Enter license number (optional)"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full btn-primary flex justify-center items-center py-3"
-              >
-                {isLoading ? (
-                  <LoadingSpinner size="small" />
-                ) : (
-                  <>
-                    Create Account
-                    <ArrowRight className="ml-2 w-5 h-5" />
-                  </>
-                )}
-              </button>
-            </div>
-
-            <div className="text-center">
-              <p className="text-sm text-gray-600">
-                Already have an account?{' '}
-                <Link to="/login" className="font-medium text-primary-600 hover:text-primary-500">
-                  Sign in here
-                </Link>
-              </p>
-            </div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full btn-primary py-3 text-sm font-bold justify-center shadow-lg mt-4"
+            >
+              {isLoading ? (
+                <LoadingSpinner size="small" color="white" />
+              ) : (
+                <>
+                  <span>{t('auth.register', 'Create Account')}</span>
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              )}
+            </button>
           </form>
+
+          <div className="mt-6 text-center text-xs">
+            <span className="text-slate-500">{t('auth.alreadyHaveAccount', 'Already have an account?')} </span>
+            <Link to="/login" className="font-bold text-emerald-700 hover:text-emerald-800 underline">
+              {t('auth.login', 'Log In')}
+            </Link>
+          </div>
+
         </div>
       </div>
     </div>

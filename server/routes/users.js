@@ -1,6 +1,8 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { users, crops } = require('../db');
+const User = require('../models/User');
+const Crop = require('../models/Crop');
+const Order = require('../models/Order');
 const { auth, authorize } = require('../middleware/auth');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
@@ -20,7 +22,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
+  limits: { fileSize: 2 * 1024 * 1024 },
   fileFilter: function (req, file, cb) {
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
@@ -35,8 +37,7 @@ const upload = multer({
 // @access  Private
 router.get('/profile', auth, async (req, res) => {
   try {
-    const user = users.find(u => u.id === req.user.id);
-
+    const user = await User.findById(req.user._id).lean();
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -44,7 +45,7 @@ router.get('/profile', auth, async (req, res) => {
     res.json({
       success: true,
       user: {
-        id: user.id,
+        id: user._id.toString(),
         name: user.name,
         email: user.email,
         phone: user.phone,
@@ -58,7 +59,6 @@ router.get('/profile', auth, async (req, res) => {
         createdAt: user.createdAt
       }
     });
-
   } catch (error) {
     console.error('Get profile error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -79,18 +79,10 @@ router.put('/profile', auth, upload.single('profileImage'), [
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({
-        message: 'Validation failed',
-        errors: errors.array()
-      });
+      return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
     }
 
-    const userIndex = users.findIndex(u => u.id === req.user.id);
-    if (userIndex === -1) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    const updateData = req.body;
+    const updateData = { ...req.body };
 
     // Handle profile image upload
     if (req.file) {
@@ -102,24 +94,31 @@ router.put('/profile', auth, upload.single('profileImage'), [
     delete updateData.email;
     delete updateData.userType;
 
-    // Update user
-    Object.assign(users[userIndex], updateData);
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: updateData },
+      { new: true, runValidators: false }
+    ).lean();
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
 
     res.json({
       success: true,
       message: 'Profile updated successfully',
       user: {
-        id: users[userIndex].id,
-        name: users[userIndex].name,
-        email: users[userIndex].email,
-        phone: users[userIndex].phone,
-        userType: users[userIndex].userType,
-        address: users[userIndex].address,
-        profileImage: users[userIndex].profileImage,
-        farmDetails: users[userIndex].farmDetails,
-        businessDetails: users[userIndex].businessDetails,
-        rating: users[userIndex].rating,
-        isVerified: users[userIndex].isVerified
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        userType: user.userType,
+        address: user.address,
+        profileImage: user.profileImage,
+        farmDetails: user.farmDetails,
+        businessDetails: user.businessDetails,
+        rating: user.rating,
+        isVerified: user.isVerified
       }
     });
 
@@ -139,20 +138,15 @@ router.put('/change-password', auth, [
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({
-        message: 'Validation failed',
-        errors: errors.array()
-      });
+      return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
     }
 
     const { currentPassword, newPassword } = req.body;
 
-    const userIndex = users.findIndex(u => u.id === req.user.id);
-    if (userIndex === -1) {
+    const user = await User.findById(req.user._id);
+    if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-
-    const user = users[userIndex];
 
     // Check current password
     const isPasswordMatch = await bcrypt.compare(currentPassword, user.password);
@@ -160,13 +154,12 @@ router.put('/change-password', auth, [
       return res.status(400).json({ message: 'Current password is incorrect' });
     }
 
-    // Update password
-    user.password = await bcrypt.hash(newPassword, 10);
+    // Hash new password and save
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    await User.findByIdAndUpdate(req.user._id, { password: hashedPassword });
 
-    res.json({
-      success: true,
-      message: 'Password changed successfully'
-    });
+    res.json({ success: true, message: 'Password changed successfully' });
 
   } catch (error) {
     console.error('Change password error:', error);
@@ -179,7 +172,7 @@ router.put('/change-password', auth, [
 // @access  Private
 router.get('/dashboard', auth, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const userType = req.user.userType;
 
     let dashboardData = {
@@ -193,80 +186,107 @@ router.get('/dashboard', auth, async (req, res) => {
     };
 
     if (userType === 'farmer') {
-      // Farmer dashboard data using in-memory crops
-      const userCrops = crops.filter(crop => crop.farmer === userId);
-      const totalCrops = userCrops.length;
-      const activeCrops = userCrops.filter(crop => crop.isActive && crop.availability.status === 'available').length;
+      const [totalCrops, activeCrops, recentCrops, farmerOrders] = await Promise.all([
+        Crop.countDocuments({ farmer: userId }),
+        Crop.countDocuments({ farmer: userId, isActive: true, 'availability.status': 'available' }),
+        Crop.find({ farmer: userId })
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .select('name price quantity images availability createdAt')
+          .lean(),
+        Order.find({ farmer: userId })
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .lean()
+      ]);
 
-      // For now, set orders to 0 since we don't have in-memory orders
-      const totalOrders = 0;
-      const pendingOrders = 0;
-      const totalEarnings = 0;
+      const totalOrders = await Order.countDocuments({ farmer: userId });
+      const pendingOrders = await Order.countDocuments({ farmer: userId, status: 'pending' });
+      const earningsAgg = await Order.aggregate([
+        { $match: { farmer: userId, paymentStatus: 'paid' } },
+        { $group: { _id: null, total: { $sum: '$finalAmount' } } }
+      ]);
+      const totalEarnings = earningsAgg[0]?.total || 0;
 
-      const recentCrops = userCrops
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        .slice(0, 5)
-        .map(crop => ({
-          _id: crop._id,
-          name: crop.name,
-          price: crop.price,
-          quantity: crop.quantity,
-          images: crop.images,
-          availability: crop.availability,
-          createdAt: crop.createdAt
-        }));
-
-      dashboardData.stats = {
-        totalCrops,
-        activeCrops,
-        totalOrders,
-        pendingOrders,
-        totalEarnings
-      };
-
-      dashboardData.recentCrops = recentCrops;
-      dashboardData.recentOrders = [];
+      dashboardData.stats = { totalCrops, activeCrops, totalOrders, pendingOrders, totalEarnings };
+      dashboardData.recentCrops = recentCrops.map(c => ({ ...c, _id: c._id.toString() }));
+      dashboardData.recentOrders = farmerOrders.map(o => ({ ...o, _id: o._id.toString() }));
 
     } else if (userType === 'buyer') {
-      // Buyer dashboard data
-      const totalOrders = 0;
-      const pendingOrders = 0;
-      const totalSpent = 0;
+      const [totalOrders, pendingOrders, recentOrders] = await Promise.all([
+        Order.countDocuments({ buyer: userId }),
+        Order.countDocuments({ buyer: userId, status: 'pending' }),
+        Order.find({ buyer: userId }).sort({ createdAt: -1 }).limit(5).lean()
+      ]);
 
-      const favoriteCrops = crops
-        .filter(crop => crop.favorites && crop.favorites.includes(userId) && crop.isActive)
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        .slice(0, 5)
-        .map(crop => ({
-          _id: crop._id,
-          name: crop.name,
-          price: crop.price,
-          quantity: crop.quantity,
-          images: crop.images,
-          farmer: users.find(u => u.id === crop.farmer) ? {
-            name: users.find(u => u.id === crop.farmer).name,
-            rating: users.find(u => u.id === crop.farmer).rating
-          } : null,
-          createdAt: crop.createdAt
-        }));
+      const spentAgg = await Order.aggregate([
+        { $match: { buyer: userId, paymentStatus: 'paid' } },
+        { $group: { _id: null, total: { $sum: '$finalAmount' } } }
+      ]);
+      const totalSpent = spentAgg[0]?.total || 0;
 
-      dashboardData.stats = {
-        totalOrders,
-        pendingOrders,
-        totalSpent
-      };
+      const favoriteCrops = await Crop.find({ favorites: userId, isActive: true })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .populate('farmer', 'name rating')
+        .lean();
 
-      dashboardData.recentOrders = [];
-      dashboardData.favoriteCrops = favoriteCrops;
+      dashboardData.stats = { totalOrders, pendingOrders, totalSpent };
+      dashboardData.recentOrders = recentOrders.map(o => ({ ...o, _id: o._id.toString() }));
+      dashboardData.favoriteCrops = favoriteCrops.map(c => ({ ...c, _id: c._id.toString() }));
     }
 
-    res.json({
-      success: true,
-      dashboard: dashboardData
-    });
+    res.json({ success: true, dashboard: dashboardData });
 
   } catch (error) {
     console.error('Get dashboard error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   GET /api/users/search
+// @desc    Search users
+// @access  Public
+router.get('/search', async (req, res) => {
+  try {
+    const { q, userType, state, page = 1, limit = 10 } = req.query;
+
+    const query = { isActive: true };
+    if (userType) query.userType = userType;
+    if (state) query['address.state'] = state;
+    if (q) {
+      query.$or = [
+        { name: { $regex: q, $options: 'i' } },
+        { 'address.city': { $regex: q, $options: 'i' } }
+      ];
+    }
+
+    const total = await User.countDocuments(query);
+    const users = await User.find(query)
+      .sort({ 'rating.average': -1, createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .lean();
+
+    res.json({
+      success: true,
+      users: users.map(u => ({
+        id: u._id.toString(),
+        name: u.name,
+        userType: u.userType,
+        address: u.address,
+        rating: u.rating,
+        createdAt: u.createdAt
+      })),
+      pagination: {
+        current: Number(page),
+        pages: Math.ceil(total / limit),
+        total
+      }
+    });
+
+  } catch (error) {
+    console.error('Search users error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -276,25 +296,27 @@ router.get('/dashboard', auth, async (req, res) => {
 // @access  Public
 router.get('/:id/public', async (req, res) => {
   try {
-    const user = users.find(u => u.id === req.params.id);
-
+    const user = await User.findById(req.params.id).lean();
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Get additional stats based on user type
     let stats = {};
     if (user.userType === 'farmer') {
-      const totalCrops = crops.filter(crop => crop.farmer === user.id && crop.isActive).length;
-      stats = { totalCrops, totalOrders: 0 };
+      const [totalCrops, totalOrders] = await Promise.all([
+        Crop.countDocuments({ farmer: user._id, isActive: true }),
+        Order.countDocuments({ farmer: user._id })
+      ]);
+      stats = { totalCrops, totalOrders };
     } else if (user.userType === 'buyer') {
-      stats = { totalOrders: 0 };
+      const totalOrders = await Order.countDocuments({ buyer: user._id });
+      stats = { totalOrders };
     }
 
     res.json({
       success: true,
       user: {
-        id: user.id,
+        id: user._id.toString(),
         name: user.name,
         userType: user.userType,
         address: user.address,
@@ -308,54 +330,6 @@ router.get('/:id/public', async (req, res) => {
 
   } catch (error) {
     console.error('Get public profile error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// @route   GET /api/users/search
-// @desc    Search users
-// @access  Public
-router.get('/search', async (req, res) => {
-  try {
-    const { q, userType, state, page = 1, limit = 10 } = req.query;
-
-    let filteredUsers = users.filter(u => u.isActive !== false);
-
-    if (userType) filteredUsers = filteredUsers.filter(u => u.userType === userType);
-    if (state) filteredUsers = filteredUsers.filter(u => u.address?.state === state);
-    if (q) {
-      const query = q.toLowerCase();
-      filteredUsers = filteredUsers.filter(u =>
-        u.name.toLowerCase().includes(query) ||
-        u.address?.city?.toLowerCase().includes(query)
-      );
-    }
-
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const paginatedUsers = filteredUsers
-      .sort((a, b) => (b.rating?.average || 0) - (a.rating?.average || 0) || new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(startIndex, endIndex);
-
-    res.json({
-      success: true,
-      users: paginatedUsers.map(u => ({
-        id: u.id,
-        name: u.name,
-        userType: u.userType,
-        address: u.address,
-        rating: u.rating,
-        createdAt: u.createdAt
-      })),
-      pagination: {
-        current: Number(page),
-        pages: Math.ceil(filteredUsers.length / limit),
-        total: filteredUsers.length
-      }
-    });
-
-  } catch (error) {
-    console.error('Search users error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

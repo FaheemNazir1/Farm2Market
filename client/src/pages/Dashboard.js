@@ -1,42 +1,35 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from 'react-query';
+import { useTranslation } from 'react-i18next';
 import { usersAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   BarChart3, 
   Package, 
   ShoppingBag, 
-  TrendingUp, 
-  Users, 
   DollarSign,
   Plus,
-  Eye,
-  Edit,
-  Trash2,
-  Star,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  Heart
+  CheckCircle
 } from 'lucide-react';
 import LoadingSpinner from '../components/UI/LoadingSpinner';
 
 const Dashboard = () => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('overview');
-  const { user, isFarmer, isBuyer } = useAuth();
+  const { user, isFarmer } = useAuth();
 
   const { data: dashboardData, isLoading, error } = useQuery(
     'dashboard',
     usersAPI.getDashboard,
     {
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 5 * 60 * 1000,
     }
   );
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <LoadingSpinner size="large" />
       </div>
     );
@@ -44,10 +37,10 @@ const Dashboard = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Error loading dashboard</h2>
-          <p className="text-gray-600">Please try again later</p>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="card text-center p-8 max-w-md shadow-lg">
+          <h2 className="text-xl font-bold text-slate-900 mb-2">{t('common.error', 'Error')}</h2>
+          <p className="text-slate-600 mb-4">Failed to load dashboard data. Please try again.</p>
         </div>
       </div>
     );
@@ -61,508 +54,191 @@ const Dashboard = () => {
       style: 'currency',
       currency: 'INR',
       maximumFractionDigits: 0
-    }).format(price);
-  };
-
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'delivered':
-        return 'text-green-600 bg-green-100';
-      case 'shipped':
-        return 'text-blue-600 bg-blue-100';
-      case 'processing':
-        return 'text-yellow-600 bg-yellow-100';
-      case 'confirmed':
-        return 'text-purple-600 bg-purple-100';
-      case 'pending':
-        return 'text-gray-600 bg-gray-100';
-      default:
-        return 'text-gray-600 bg-gray-100';
-    }
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'delivered':
-        return <CheckCircle className="w-4 h-4" />;
-      case 'shipped':
-        return <Package className="w-4 h-4" />;
-      case 'processing':
-        return <Clock className="w-4 h-4" />;
-      case 'confirmed':
-        return <CheckCircle className="w-4 h-4" />;
-      case 'pending':
-        return <AlertCircle className="w-4 h-4" />;
-      default:
-        return <AlertCircle className="w-4 h-4" />;
-    }
+    }).format(price || 0);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-slate-50/70 pb-20">
+      
+      {/* Top Header */}
+      <div className="bg-white border-b border-slate-200/80 sticky top-20 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Welcome back, {user?.name}!
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 font-heading">
+                {t('dashboard.welcome', 'Welcome back')}, {user?.name}!
               </h1>
-              <p className="text-gray-600">
-                {isFarmer ? 'Manage your crops and orders' : 'Track your orders and discover fresh produce'}
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                {isFarmer
+                  ? t('dashboard.farmerSubtitle', 'Manage your active produce listings, incoming orders, and earnings')
+                  : t('dashboard.buyerSubtitle', 'Track your active crop purchases, favorites, and deliveries')}
               </p>
             </div>
-            <div className="flex space-x-3">
+
+            <div className="flex items-center space-x-3">
               {isFarmer && (
-                <Link to="/crops/new" className="btn-primary flex items-center">
-                  <Plus className="w-5 h-5 mr-2" />
-                  Add Crop
+                <Link to="/crops/new" className="btn-primary text-xs py-2.5 px-4 font-bold flex items-center">
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  <span>{t('dashboard.addCropCTA', 'Add New Produce')}</span>
                 </Link>
               )}
-              <Link to="/marketplace" className="btn-outline flex items-center">
-                <ShoppingBag className="w-5 h-5 mr-2" />
-                Browse Marketplace
+              <Link to="/marketplace" className="btn-secondary text-xs py-2.5 px-4 font-bold flex items-center">
+                <ShoppingBag className="w-4 h-4 mr-1.5 text-emerald-600" />
+                <span>{t('nav.marketplace', 'Marketplace')}</span>
               </Link>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+        
+        {/* Metric Cards Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {isFarmer ? (
             <>
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-primary-100 rounded-lg">
-                    <Package className="w-6 h-6 text-primary-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Crops</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.totalCrops || 0}</p>
-                  </div>
+              <div className="card p-5 bg-white border border-slate-200/80 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-500 uppercase">{t('dashboard.totalCrops', 'Total Listed Crops')}</span>
+                  <Package className="w-5 h-5 text-emerald-600" />
                 </div>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 font-heading">{stats.totalCrops || 0}</p>
               </div>
 
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <CheckCircle className="w-6 h-6 text-green-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Active Crops</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.activeCrops || 0}</p>
-                  </div>
+              <div className="card p-5 bg-white border border-slate-200/80 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-500 uppercase">{t('dashboard.activeCrops', 'Active in Market')}</span>
+                  <CheckCircle className="w-5 h-5 text-emerald-600" />
                 </div>
+                <p className="text-2xl sm:text-3xl font-black text-emerald-700 font-heading">{stats.activeCrops || 0}</p>
               </div>
 
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <BarChart3 className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Orders</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.totalOrders || 0}</p>
-                  </div>
+              <div className="card p-5 bg-white border border-slate-200/80 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-500 uppercase">{t('dashboard.totalOrders', 'Total Orders')}</span>
+                  <BarChart3 className="w-5 h-5 text-sky-600" />
                 </div>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 font-heading">{stats.totalOrders || 0}</p>
               </div>
 
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-yellow-100 rounded-lg">
-                    <DollarSign className="w-6 h-6 text-yellow-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Earnings</p>
-                    <p className="text-2xl font-bold text-gray-900">{formatPrice(stats.totalEarnings || 0)}</p>
-                  </div>
+              <div className="card p-5 bg-white border border-slate-200/80 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-500 uppercase">{t('dashboard.totalEarnings', 'Total Revenue')}</span>
+                  <DollarSign className="w-5 h-5 text-amber-600" />
                 </div>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 font-heading">{formatPrice(stats.totalEarnings || 0)}</p>
               </div>
             </>
           ) : (
             <>
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-primary-100 rounded-lg">
-                    <ShoppingBag className="w-6 h-6 text-primary-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Orders</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.totalOrders || 0}</p>
-                  </div>
+              <div className="card p-5 bg-white border border-slate-200/80 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-500 uppercase">{t('dashboard.totalOrders', 'Total Orders')}</span>
+                  <ShoppingBag className="w-5 h-5 text-emerald-600" />
                 </div>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 font-heading">{stats.totalOrders || 0}</p>
               </div>
 
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Clock className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Pending Orders</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.pendingOrders || 0}</p>
-                  </div>
+              <div className="card p-5 bg-white border border-slate-200/80 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-500 uppercase">{t('dashboard.totalSpent', 'Total Purchases')}</span>
+                  <DollarSign className="w-5 h-5 text-emerald-600" />
                 </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <TrendingUp className="w-6 h-6 text-green-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Spent</p>
-                    <p className="text-2xl font-bold text-gray-900">{formatPrice(stats.totalSpent || 0)}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <Heart className="w-6 h-6 text-purple-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Favorites</p>
-                    <p className="text-2xl font-bold text-gray-900">{dashboard?.favoriteCrops?.length || 0}</p>
-                  </div>
-                </div>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 font-heading">{formatPrice(stats.totalSpent || 0)}</p>
               </div>
             </>
           )}
         </div>
 
-        {/* Tabs */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8 px-6">
-              <button
-                onClick={() => setActiveTab('overview')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'overview'
-                    ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Overview
-              </button>
-              {isFarmer && (
-                <button
-                  onClick={() => setActiveTab('crops')}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === 'crops'
-                      ? 'border-primary-500 text-primary-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  My Crops
-                </button>
-              )}
-              <button
-                onClick={() => setActiveTab('orders')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'orders'
-                    ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Orders
-              </button>
-              {isBuyer && (
-                <button
-                  onClick={() => setActiveTab('favorites')}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === 'favorites'
-                      ? 'border-primary-500 text-primary-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Favorites
-                </button>
-              )}
-            </nav>
-          </div>
+        {/* Tab Selection */}
+        <div className="flex space-x-2 border-b border-slate-200 pb-2">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'overview'
+                ? 'bg-emerald-700 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            {t('dashboard.welcome', 'Overview')}
+          </button>
+          
+          {isFarmer && (
+            <button
+              onClick={() => setActiveTab('crops')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'crops'
+                  ? 'bg-emerald-700 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {t('dashboard.myCrops', 'My Crop Listings')}
+            </button>
+          )}
 
-          <div className="p-6">
-            {/* Overview Tab */}
-            {activeTab === 'overview' && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Recent Activity
-                  </h3>
-                  <div className="space-y-4">
-                    {dashboard?.recentOrders?.slice(0, 5).map((order) => (
-                      <div key={order._id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-4">
-                          <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                            <Package className="w-5 h-5 text-primary-600" />
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">
-                              Order #{order.orderNumber}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              {isFarmer ? `Buyer: ${order.buyer?.name}` : `Farmer: ${order.farmer?.name}`}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="flex items-center space-x-2">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
-                              {getStatusIcon(order.status)}
-                              <span className="ml-1 capitalize">{order.status}</span>
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600 mt-1">
-                            {formatPrice(order.finalAmount)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Crops Tab (Farmer only) */}
-            {activeTab === 'crops' && isFarmer && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    My Crops
-                  </h3>
-                  <Link to="/crops/new" className="btn-primary">
-                    Add New Crop
-                  </Link>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {dashboard?.recentCrops?.map((crop) => (
-                    <div key={crop._id} className="bg-white border border-gray-200 rounded-lg p-4">
-                      <div className="aspect-w-16 aspect-h-9 bg-gray-200 rounded-lg mb-4">
-                        {crop.images && crop.images.length > 0 ? (
-                          <img
-                            src={crop.images[0].url}
-                            alt={crop.name}
-                            className="w-full h-32 object-cover rounded-lg"
-                          />
-                        ) : (
-                          <div className="w-full h-32 bg-gray-200 rounded-lg flex items-center justify-center">
-                            <span className="text-gray-400">No Image</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <h4 className="font-semibold text-gray-900 mb-2">{crop.name}</h4>
-                      <p className="text-sm text-gray-600 mb-2 line-clamp-2">{crop.description}</p>
-                      
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="text-lg font-bold text-primary-600">
-                          {formatPrice(crop.price.perUnit)}
-                        </span>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          crop.availability.status === 'available' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {crop.availability.status}
-                        </span>
-                      </div>
-
-                      <div className="flex space-x-2">
-                        <Link
-                          to={`/crop/${crop._id}`}
-                          className="flex-1 btn-outline text-center text-sm py-2"
-                        >
-                          <Eye className="w-4 h-4 inline mr-1" />
-                          View
-                        </Link>
-                        <Link
-                          to={`/crops/${crop._id}/edit`}
-                          className="flex-1 btn-primary text-center text-sm py-2"
-                        >
-                          <Edit className="w-4 h-4 inline mr-1" />
-                          Edit
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {dashboard?.recentCrops?.length === 0 && (
-                  <div className="text-center py-12">
-                    <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No crops yet</h3>
-                    <p className="text-gray-600 mb-4">Start by adding your first crop to the marketplace</p>
-                    <Link to="/crops/new" className="btn-primary">
-                      Add Your First Crop
-                    </Link>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Orders Tab */}
-            {activeTab === 'orders' && (
-              <div className="space-y-6">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Recent Orders
-                </h3>
-
-                <div className="space-y-4">
-                  {dashboard?.recentOrders?.map((order) => (
-                    <div key={order._id} className="bg-white border border-gray-200 rounded-lg p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h4 className="font-semibold text-gray-900">
-                            Order #{order.orderNumber}
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            {formatDate(order.createdAt)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
-                              {getStatusIcon(order.status)}
-                              <span className="ml-1 capitalize">{order.status}</span>
-                            </span>
-                          </div>
-                          <p className="text-lg font-bold text-gray-900">
-                            {formatPrice(order.finalAmount)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm font-medium text-gray-700">
-                            {isFarmer ? 'Buyer:' : 'Farmer:'}
-                          </p>
-                          <p className="text-sm text-gray-900">
-                            {isFarmer ? order.buyer?.name : order.farmer?.name}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-700">Items:</p>
-                          <p className="text-sm text-gray-900">
-                            {order.items?.length} item{order.items?.length !== 1 ? 's' : ''}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex space-x-2">
-                        <Link
-                          to={`/orders/${order._id}`}
-                          className="btn-outline text-sm py-2"
-                        >
-                          View Details
-                        </Link>
-                        {order.status === 'delivered' && (
-                          <button className="btn-secondary text-sm py-2">
-                            <Star className="w-4 h-4 inline mr-1" />
-                            Rate & Review
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {dashboard?.recentOrders?.length === 0 && (
-                  <div className="text-center py-12">
-                    <ShoppingBag className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No orders yet</h3>
-                    <p className="text-gray-600 mb-4">
-                      {isFarmer ? 'Your orders will appear here when customers buy your crops' : 'Your orders will appear here once you make a purchase'}
-                    </p>
-                    <Link to="/marketplace" className="btn-primary">
-                      {isFarmer ? 'Add Crops' : 'Browse Marketplace'}
-                    </Link>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Favorites Tab (Buyer only) */}
-            {activeTab === 'favorites' && isBuyer && (
-              <div className="space-y-6">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Favorite Crops
-                </h3>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {dashboard?.favoriteCrops?.map((crop) => (
-                    <div key={crop._id} className="bg-white border border-gray-200 rounded-lg p-4">
-                      <div className="aspect-w-16 aspect-h-9 bg-gray-200 rounded-lg mb-4">
-                        {crop.images && crop.images.length > 0 ? (
-                          <img
-                            src={crop.images[0].url}
-                            alt={crop.name}
-                            className="w-full h-32 object-cover rounded-lg"
-                          />
-                        ) : (
-                          <div className="w-full h-32 bg-gray-200 rounded-lg flex items-center justify-center">
-                            <span className="text-gray-400">No Image</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <h4 className="font-semibold text-gray-900 mb-2">{crop.name}</h4>
-                      <p className="text-sm text-gray-600 mb-2 line-clamp-2">{crop.description}</p>
-                      
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="text-lg font-bold text-primary-600">
-                          {formatPrice(crop.price.perUnit)}
-                        </span>
-                        <div className="flex items-center space-x-1">
-                          <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                          <span className="text-sm text-gray-600">
-                            {crop.farmer.rating?.average?.toFixed(1) || 'New'}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex space-x-2">
-                        <Link
-                          to={`/crop/${crop._id}`}
-                          className="flex-1 btn-outline text-center text-sm py-2"
-                        >
-                          View Details
-                        </Link>
-                        <button className="flex-1 btn-primary text-center text-sm py-2">
-                          Add to Cart
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {dashboard?.favoriteCrops?.length === 0 && (
-                  <div className="text-center py-12">
-                    <Heart className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No favorites yet</h3>
-                    <p className="text-gray-600 mb-4">Start browsing and add crops to your favorites</p>
-                    <Link to="/marketplace" className="btn-primary">
-                      Browse Marketplace
-                    </Link>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <button
+            onClick={() => setActiveTab('orders')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'orders'
+                ? 'bg-emerald-700 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            {t('dashboard.orders', 'Order History')}
+          </button>
         </div>
+
+        {/* Crops List (Farmer View) */}
+        {isFarmer && (activeTab === 'overview' || activeTab === 'crops') && (
+          <div className="card p-6 bg-white border border-slate-200/80 shadow-md space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900 font-heading">{t('dashboard.myCrops', 'My Crop Listings')}</h3>
+              <Link to="/crops/new" className="text-xs font-bold text-emerald-700 hover:text-emerald-800">
+                + {t('dashboard.addCropCTA', 'Add New Produce')}
+              </Link>
+            </div>
+
+            {dashboard?.crops?.length === 0 ? (
+              <p className="text-xs text-slate-500 py-4">No produce listed yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase">
+                    <tr>
+                      <th className="p-3">Produce</th>
+                      <th className="p-3">Category</th>
+                      <th className="p-3">Price</th>
+                      <th className="p-3">Stock</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {dashboard?.crops?.map((crop) => (
+                      <tr key={crop._id} className="hover:bg-slate-50">
+                        <td className="p-3 font-bold text-slate-900">{crop.name}</td>
+                        <td className="p-3 text-slate-600">{crop.category}</td>
+                        <td className="p-3 text-emerald-700 font-bold">{formatPrice(crop.price?.perUnit)}/{crop.quantity?.unit}</td>
+                        <td className="p-3">{crop.quantity?.value} {crop.quantity?.unit}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${crop.status === 'available' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                            {crop.status === 'available' ? t('dashboard.statusAvailable', 'Active') : t('dashboard.statusSold', 'Sold Out')}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          <Link to={`/crop/${crop._id}`} className="text-emerald-700 hover:text-emerald-900 font-bold">
+                            {t('dashboard.viewDetails', 'View')}
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );

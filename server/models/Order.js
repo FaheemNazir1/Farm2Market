@@ -4,7 +4,8 @@ const orderSchema = new mongoose.Schema({
   orderNumber: {
     type: String,
     unique: true,
-    required: true
+    sparse: true,
+    default: null
   },
   buyer: {
     type: mongoose.Schema.Types.ObjectId,
@@ -66,7 +67,7 @@ const orderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['card', 'upi', 'netbanking', 'wallet', 'cod'],
+    enum: ['card', 'upi', 'netbanking', 'wallet', 'cod', 'razorpay'],
     required: true
   },
   paymentId: String,
@@ -120,8 +121,12 @@ const orderSchema = new mongoose.Schema({
 // Generate order number before saving
 orderSchema.pre('save', async function(next) {
   if (!this.orderNumber) {
-    const count = await this.constructor.countDocuments();
-    this.orderNumber = `F2M${Date.now()}${String(count + 1).padStart(4, '0')}`;
+    try {
+      const count = await this.constructor.countDocuments();
+      this.orderNumber = `F2M${Date.now()}${String(count + 1).padStart(4, '0')}`;
+    } catch (e) {
+      this.orderNumber = `F2M${Date.now()}${String(Math.floor(Math.random() * 9999)).padStart(4, '0')}`;
+    }
   }
   next();
 });

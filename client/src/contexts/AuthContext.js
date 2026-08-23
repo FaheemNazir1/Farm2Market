@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
+import { auth, googleProvider, signInWithPopup } from '../firebase';
+
 const AuthContext = createContext();
 
 export const useAuth = () => {
@@ -23,6 +25,7 @@ export const AuthProvider = ({ children }) => {
     } else {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const getUserProfile = async () => {
@@ -60,6 +63,78 @@ export const AuthProvider = ({ children }) => {
       console.error('Login error:', error);
       toast.error('Login failed. Please try again.');
       return { success: false, message: 'Login failed' };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loginWithGoogle = async (userType = null, existingIdToken = null) => {
+    let idToken = existingIdToken;
+    try {
+      setLoading(true);
+      // 1. If no existing ID token provided, open Firebase Google popup sign-in
+      if (!idToken) {
+        const result = await signInWithPopup(auth, googleProvider);
+        idToken = await result.user.getIdToken();
+      }
+      
+      // 2. Send token securely to Farm2Market backend
+      const response = await authAPI.googleLogin(idToken, userType);
+      
+      if (response.success && response.token) {
+        setToken(response.token);
+        setUser(response.user);
+        localStorage.setItem('token', response.token);
+        toast.success(response.message || 'Signed in with Google!');
+        return { success: true, user: response.user };
+      } else {
+        return { 
+          success: false, 
+          requiresRoleSelection: response.requiresRoleSelection || false, 
+          idToken,
+          message: response.message 
+        };
+      }
+    } catch (error) {
+      console.error('Google sign-in error:', error);
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        toast('Google sign-in was cancelled', { icon: 'ℹ️' });
+        return { success: false, cancelled: true };
+      }
+      if (error.code === 'auth/popup-blocked') {
+        toast.error('The sign-in popup was blocked by your browser. Please allow popups for this site.');
+        return { success: false, message: 'Popup blocked' };
+      }
+      if (error.code === 'auth/unauthorized-domain') {
+        toast.error('Domain not authorized! Add "localhost" in Firebase Console -> Authentication -> Settings -> Authorized Domains.', { duration: 6000 });
+        return { success: false, message: 'Unauthorized domain' };
+      }
+      if (error.code === 'auth/operation-not-allowed') {
+        toast.error('Google provider is disabled in Firebase Console -> Authentication -> Sign-in method.', { duration: 6000 });
+        return { success: false, message: 'Google provider disabled' };
+      }
+      if (error.code === 'auth/configuration-not-found' || error.code === 'auth/invalid-api-key') {
+        toast.error('Firebase configuration is missing or invalid in client/.env');
+        return { success: false, message: 'Firebase configuration error' };
+      }
+
+      const requiresRole = error.response?.data?.requiresRoleSelection;
+      if (requiresRole) {
+        return {
+          success: false,
+          requiresRoleSelection: true,
+          idToken,
+          message: error.response?.data?.message
+        };
+      }
+
+      const errorMessage = error.response?.data?.message || error.message || 'Google sign-in failed';
+      toast.error(errorMessage);
+      return { 
+        success: false, 
+        requiresRoleSelection: false,
+        message: errorMessage 
+      };
     } finally {
       setLoading(false);
     }
@@ -147,6 +222,7 @@ export const AuthProvider = ({ children }) => {
     token,
     loading,
     login,
+    loginWithGoogle,
     register,
     logout,
     updateProfile,
@@ -154,6 +230,8 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: !!user,
     isFarmer: user?.userType === 'farmer',
     isBuyer: user?.userType === 'buyer',
+    canBuy: !!user && (user?.userType === 'buyer' || user?.userType === 'farmer'),
+    canSell: !!user && user?.userType === 'farmer',
     isAdmin: user?.userType === 'admin'
   };
 

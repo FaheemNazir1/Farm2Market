@@ -1,114 +1,107 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { auth, authorize } = require('../middleware/auth');
-const { users, crops, orders } = require('../db');
+const Crop = require('../models/Crop');
+const Order = require('../models/Order');
+const User = require('../models/User');
+const mongoose = require('mongoose');
 
 const router = express.Router();
 
 // @route   POST /api/orders
 // @desc    Create new order
-// @access  Private (Buyer only)
-router.post('/', auth, authorize('buyer'), [
+// @access  Private (Buyer or Farmer)
+router.post('/', auth, authorize('buyer', 'farmer'), [
   body('items').isArray({ min: 1 }).withMessage('At least one item is required'),
-  body('items.*.cropId').notEmpty().withMessage('Crop ID is required'),
-  body('items.*.quantity').isNumeric().withMessage('Quantity must be a number'),
-  // Custom validation for nested shippingAddress object
-  body('shippingAddress').custom((value) => {
-    if (!value || typeof value !== 'object') {
-      throw new Error('Shipping address is required');
-    }
-    if (!value.name || !value.name.trim()) {
-      throw new Error('Shipping name is required');
-    }
-    if (!value.phone || !/^[0-9]{10,11}$/.test(value.phone)) {
-      throw new Error('Invalid phone number');
-    }
-    if (!value.street || !value.street.trim()) {
-      throw new Error('Street address is required');
-    }
-    if (!value.city || !value.city.trim()) {
-      throw new Error('City is required');
-    }
-    if (!value.state || !value.state.trim()) {
-      throw new Error('State is required');
-    }
-    if (!value.pincode || !/^\d{6}$/.test(value.pincode)) {
-      throw new Error('Invalid pincode');
-    }
+  body('items.*').custom((item) => {
+    const cropId = item?.cropId || (typeof item?.crop === 'object' ? item?.crop?._id : item?.crop);
+    if (!cropId) throw new Error('Crop ID is required for each item');
+    const qty = Number(item?.quantity);
+    if (!qty || isNaN(qty) || qty <= 0) throw new Error('Quantity must be a positive number');
     return true;
   }),
-  body('paymentMethod').isIn(['card', 'upi', 'netbanking', 'wallet', 'cod']).withMessage('Invalid payment method')
+  body('shippingAddress').custom((value) => {
+    if (!value || typeof value !== 'object') throw new Error('Shipping address is required');
+    if (!value.name || !value.name.trim()) throw new Error('Shipping name is required');
+    if (!value.phone || !/^[0-9]{10,11}$/.test(value.phone)) throw new Error('Invalid phone number');
+    if (!value.street || !value.street.trim()) throw new Error('Street address is required');
+    if (!value.city || !value.city.trim()) throw new Error('City is required');
+    if (!value.state || !value.state.trim()) throw new Error('State is required');
+    if (!value.pincode || !/^\d{6}$/.test(value.pincode)) throw new Error('Invalid pincode');
+    return true;
+  }),
+  body('paymentMethod').isIn(['card', 'upi', 'netbanking', 'wallet', 'cod', 'razorpay']).withMessage('Invalid payment method')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        message: 'Validation failed', 
-        errors: errors.array() 
-      });
+      return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
     }
 
     const { items, shippingAddress, paymentMethod, notes } = req.body;
-    
-    // Validate crops and calculate totals
+
     let totalAmount = 0;
     let orderItems = [];
-    const farmerIds = new Set();
+    let farmerId = null;
 
     for (const item of items) {
-      const crop = crops.find(c => c._id === item.cropId);
-      
-      if (!crop) {
-        return res.status(400).json({ message: `Crop ${item.cropId} not found` });
+      const cropId = item.cropId || (typeof item.crop === 'object' ? item.crop?._id : item.crop);
+      const quantity = Number(item.quantity);
+
+      if (!quantity || quantity <= 0) {
+        return res.status(400).json({ message: 'Quantity must be greater than zero' });
       }
 
-      if (crop.availability.status !== 'available') {
+      if (!mongoose.Types.ObjectId.isValid(cropId)) {
+        return res.status(400).json({ message: `Invalid crop ID: ${cropId}` });
+      }
+
+      const crop = await Crop.findById(cropId);
+
+      if (!crop) {
+        return res.status(400).json({ message: `Crop ${cropId} not found` });
+      }
+
+      if (crop.availability.status !== 'available' || crop.quantity.value <= 0) {
         return res.status(400).json({ message: `Crop ${crop.name} is not available` });
       }
 
-      if (crop.farmer === req.user.id) {
+      if (crop.farmer.toString() === req.user.id) {
         return res.status(400).json({ message: 'Cannot order your own crops' });
       }
 
-      if (item.quantity > crop.quantity.value) {
-        return res.status(400).json({ 
-          message: `Insufficient quantity for ${crop.name}. Available: ${crop.quantity.value} ${crop.quantity.unit}` 
+      if (quantity > crop.quantity.value) {
+        return res.status(400).json({
+          message: `Insufficient quantity for ${crop.name}. Available: ${crop.quantity.value} ${crop.quantity.unit}`
         });
       }
 
-      const itemTotal = crop.price.perUnit * item.quantity;
+      // Verify all items are from the same farmer
+      if (farmerId && farmerId !== crop.farmer.toString()) {
+        return res.status(400).json({ message: 'All items must be from the same farmer in a single order' });
+      }
+      farmerId = crop.farmer.toString();
+
+      const unitPrice = Number(crop.price?.perUnit) || 0;
+      const itemTotal = unitPrice * quantity;
       totalAmount += itemTotal;
-      farmerIds.add(crop.farmer);
 
       orderItems.push({
         crop: crop._id,
-        quantity: item.quantity,
-        unitPrice: crop.price.perUnit,
+        quantity,
+        unitPrice,
         totalPrice: itemTotal
       });
     }
 
-    // Check if all items are from the same farmer
-    if (farmerIds.size > 1) {
-      return res.status(400).json({ 
-        message: 'All items must be from the same farmer in a single order' 
-      });
-    }
-
-    const farmerId = Array.from(farmerIds)[0];
-    const deliveryCharges = 0; // Can be calculated based on distance
+    const deliveryCharges = 0;
     const taxAmount = totalAmount * 0.05; // 5% tax
     const finalAmount = totalAmount + deliveryCharges + taxAmount;
 
-    // Create order
-    const orderId = Date.now().toString();
-    const orderNumber = `F2M${Date.now()}${String(orders.length + 1).padStart(4, '0')}`;
-    
-    const order = {
-      _id: orderId,
-      orderNumber,
-      buyer: req.user.id,
-      farmer: farmerId,
+    // Create order in MongoDB
+    const order = new Order({
+      buyer: req.user._id,
+      farmer: new mongoose.Types.ObjectId(farmerId),
       items: orderItems,
       totalAmount,
       deliveryCharges,
@@ -116,59 +109,48 @@ router.post('/', auth, authorize('buyer'), [
       finalAmount,
       paymentMethod,
       shippingAddress,
-      notes: notes || '',
+      notes: notes ? { buyer: notes } : {},
       status: 'pending',
       paymentStatus: 'pending',
-      estimatedDelivery: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      estimatedDelivery: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       isActive: true
-    };
+    });
 
-    orders.push(order);
-    
-    console.log('Order created successfully:');
-    console.log('- Order ID:', order._id);
-    console.log('- Order Number:', order.orderNumber);
-    console.log('- Buyer:', order.buyer);
-    console.log('- Farmer:', order.farmer);
-    console.log('- Total orders in DB:', orders.length);
+    // Generate orderNumber via pre-save hook
+    await order.save();
 
-    // Update crop quantities
+    // Update crop quantities in MongoDB
     for (const item of orderItems) {
-      const cropToUpdate = crops.find(c => c._id === item.crop);
-      if (cropToUpdate) {
-        cropToUpdate.quantity.value -= item.quantity;
-        
-        // Mark crops as sold if quantity becomes 0
-        if (cropToUpdate.quantity.value <= 0) {
-          cropToUpdate.availability.status = 'sold';
-        }
-        cropToUpdate.updatedAt = new Date();
+      await Crop.findByIdAndUpdate(item.crop, {
+        $inc: { 'quantity.value': -item.quantity }
+      });
+      // If quantity hits 0, mark sold
+      const updatedCrop = await Crop.findById(item.crop);
+      if (updatedCrop && updatedCrop.quantity.value <= 0) {
+        await Crop.findByIdAndUpdate(item.crop, { 'availability.status': 'sold' });
       }
     }
 
-    // Get populated order data for response
-    const buyer = users.find(u => u.id === order.buyer);
-    const farmer = users.find(u => u.id === order.farmer);
-    
-    const populatedOrder = {
-      ...order,
-      buyer: buyer ? { id: buyer.id, name: buyer.name, email: buyer.email, phone: buyer.phone } : null,
-      farmer: farmer ? { id: farmer.id, name: farmer.name, email: farmer.email, phone: farmer.phone } : null,
-      items: order.items.map(item => {
-        const crop = crops.find(c => c._id === item.crop);
-        return {
-          ...item,
-          crop: crop ? { _id: crop._id, name: crop.name, images: crop.images, price: crop.price, quantity: crop.quantity } : null
-        };
-      })
+    console.log('Order created in MongoDB:', order._id.toString(), order.orderNumber);
+
+    // Populate for response
+    const populatedOrder = await Order.findById(order._id)
+      .populate('buyer', 'name email phone')
+      .populate('farmer', 'name email phone')
+      .populate('items.crop', 'name images price quantity')
+      .lean();
+
+    const responseOrder = {
+      ...populatedOrder,
+      _id: populatedOrder._id.toString(),
+      buyer: populatedOrder.buyer ? { ...populatedOrder.buyer, id: populatedOrder.buyer._id.toString() } : null,
+      farmer: populatedOrder.farmer ? { ...populatedOrder.farmer, id: populatedOrder.farmer._id.toString() } : null,
     };
 
     res.status(201).json({
       success: true,
       message: 'Order created successfully',
-      order: populatedOrder
+      order: responseOrder
     });
 
   } catch (error) {
@@ -182,59 +164,36 @@ router.post('/', auth, authorize('buyer'), [
 // @access  Private
 router.get('/', auth, async (req, res) => {
   try {
-    const { page = 1, limit = 10, status } = req.query;
-    
-    console.log('GET /api/orders - Request from user:', req.user.id, '(', req.user.userType, ')');
-    console.log('Total orders in database:', orders.length);
-    
-    // Filter orders by user (buyer or farmer)
-    let userOrders = orders.filter(order => 
-      order.buyer === req.user.id || order.farmer === req.user.id
-    );
-    
-    console.log('Orders for this user:', userOrders.length);
-    
-    // Filter by status if provided
-    if (status) {
-      userOrders = userOrders.filter(order => order.status === status);
-    }
-    
-    // Sort by creation date (newest first)
-    userOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    
-    // Pagination
-    const total = userOrders.length;
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + parseInt(limit);
-    const paginatedOrders = userOrders.slice(startIndex, endIndex);
-    
-    // Populate orders with user and crop data
-    const populatedOrders = paginatedOrders.map(order => {
-      const buyer = users.find(u => u.id === order.buyer);
-      const farmer = users.find(u => u.id === order.farmer);
-      
-      return {
-        ...order,
-        buyer: buyer ? { id: buyer.id, name: buyer.name, email: buyer.email, phone: buyer.phone } : null,
-        farmer: farmer ? { id: farmer.id, name: farmer.name, email: farmer.email, phone: farmer.phone } : null,
-        items: order.items.map(item => {
-          const crop = crops.find(c => c._id === item.crop);
-          return {
-            ...item,
-            crop: crop ? { _id: crop._id, name: crop.name, images: crop.images, price: crop.price, quantity: crop.quantity } : null
-          };
-        })
-      };
-    });
+    const { page = 1, limit = 10, status, type } = req.query;
+
+    let query = {};
+    if (type === 'buying') query.buyer = req.user._id;
+    else if (type === 'selling') query.farmer = req.user._id;
+    else query.$or = [{ buyer: req.user._id }, { farmer: req.user._id }];
+
+    if (status) query.status = status;
+
+    const total = await Order.countDocuments(query);
+    const orders = await Order.find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .populate('buyer', 'name email phone')
+      .populate('farmer', 'name email phone')
+      .populate('items.crop', 'name images price quantity')
+      .lean();
+
+    const normalizedOrders = orders.map(o => ({
+      ...o,
+      _id: o._id.toString(),
+      buyer: o.buyer ? { ...o.buyer, id: o.buyer._id?.toString() } : null,
+      farmer: o.farmer ? { ...o.farmer, id: o.farmer._id?.toString() } : null
+    }));
 
     res.json({
       success: true,
-      orders: populatedOrders,
-      pagination: {
-        current: Number(page),
-        pages: Math.ceil(total / limit),
-        total
-      }
+      orders: normalizedOrders,
+      pagination: { current: Number(page), pages: Math.ceil(total / limit), total }
     });
 
   } catch (error) {
@@ -247,22 +206,16 @@ router.get('/', auth, async (req, res) => {
 // @desc    Update order status
 // @access  Private
 router.put('/:id/status', auth, [
-  body('status').isIn([
-    'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'
-  ]).withMessage('Invalid status'),
+  body('status').isIn(['confirmed', 'processing', 'shipped', 'delivered', 'cancelled']).withMessage('Invalid status'),
   body('notes').optional().isString()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        message: 'Validation failed', 
-        errors: errors.array() 
-      });
+      return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
     }
 
-    const order = orders.find(o => o._id === req.params.id);
-    
+    const order = await Order.findById(req.params.id);
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
     }
@@ -270,16 +223,13 @@ router.put('/:id/status', auth, [
     const { status, notes, trackingInfo } = req.body;
     const userRole = req.user.userType;
 
-    // Authorization checks
-    if (userRole === 'farmer' && order.farmer !== req.user.id) {
+    if (userRole === 'farmer' && order.farmer.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized to update this order' });
+    }
+    if (userRole === 'buyer' && order.buyer.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized to update this order' });
     }
 
-    if (userRole === 'buyer' && order.buyer !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized to update this order' });
-    }
-
-    // Status transition rules
     const validTransitions = {
       pending: ['confirmed', 'cancelled'],
       confirmed: ['processing', 'cancelled'],
@@ -291,26 +241,16 @@ router.put('/:id/status', auth, [
     };
 
     if (!validTransitions[order.status]?.includes(status)) {
-      return res.status(400).json({ 
-        message: `Cannot change status from ${order.status} to ${status}` 
-      });
+      return res.status(400).json({ message: `Cannot change status from ${order.status} to ${status}` });
     }
 
-    // Update order status
     order.status = status;
-    order.updatedAt = new Date();
-    
     if (notes) {
-      if (!order.notes) {
-        order.notes = {};
-      }
+      if (!order.notes) order.notes = {};
       order.notes[userRole] = notes;
     }
-
     if (status === 'shipped' && trackingInfo) {
-      if (!order.trackingInfo) {
-        order.trackingInfo = { updates: [] };
-      }
+      if (!order.trackingInfo) order.trackingInfo = { updates: [] };
       order.trackingInfo = {
         ...order.trackingInfo,
         ...trackingInfo,
@@ -325,49 +265,23 @@ router.put('/:id/status', auth, [
         ]
       };
     }
-
     if (status === 'delivered') {
       order.deliveryDate = new Date();
       order.paymentStatus = 'paid';
     }
 
-    // Get populated order data for response
-    const buyer = users.find(u => u.id === order.buyer);
-    const farmer = users.find(u => u.id === order.farmer);
-    
-    const populatedOrder = {
-      ...order,
-      buyer: buyer ? { 
-        id: buyer.id, 
-        name: buyer.name, 
-        email: buyer.email, 
-        phone: buyer.phone 
-      } : null,
-      farmer: farmer ? { 
-        id: farmer.id, 
-        name: farmer.name, 
-        email: farmer.email, 
-        phone: farmer.phone 
-      } : null,
-      items: order.items.map(item => {
-        const crop = crops.find(c => c._id === item.crop);
-        return {
-          ...item,
-          crop: crop ? { 
-            _id: crop._id, 
-            name: crop.name, 
-            images: crop.images, 
-            price: crop.price, 
-            quantity: crop.quantity 
-          } : null
-        };
-      })
-    };
+    await order.save();
+
+    const populatedOrder = await Order.findById(order._id)
+      .populate('buyer', 'name email phone')
+      .populate('farmer', 'name email phone')
+      .populate('items.crop', 'name images price quantity')
+      .lean();
 
     res.json({
       success: true,
       message: 'Order status updated successfully',
-      order: populatedOrder
+      order: { ...populatedOrder, _id: populatedOrder._id.toString() }
     });
 
   } catch (error) {
@@ -381,61 +295,59 @@ router.put('/:id/status', auth, [
 // @access  Private
 router.post('/:id/rating', auth, [
   body('rating').isInt({ min: 1, max: 5 }).withMessage('Rating must be between 1 and 5'),
-  body('review').optional().isString().isLength({ max: 500 }).withMessage('Review must be less than 500 characters')
+  body('review').optional().isString().isLength({ max: 500 })
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        message: 'Validation failed', 
-        errors: errors.array() 
-      });
+      return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
     }
 
-    const order = orders.find(o => o._id === req.params.id);
-    
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
-
-    if (order.status !== 'delivered') {
-      return res.status(400).json({ message: 'Can only rate delivered orders' });
-    }
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.status !== 'delivered') return res.status(400).json({ message: 'Can only rate delivered orders' });
 
     const { rating, review } = req.body;
     const userRole = req.user.userType;
 
-    // Check if user is authorized to rate
-    if (userRole === 'buyer' && order.buyer !== req.user.id) {
+    if (userRole === 'buyer' && order.buyer.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized to rate this order' });
+    }
+    if (userRole === 'farmer' && order.farmer.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized to rate this order' });
     }
 
-    if (userRole === 'farmer' && order.farmer !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized to rate this order' });
+    if (!order.ratings) order.ratings = {};
+    order.ratings[userRole] = { rating, review, date: new Date() };
+    await order.save();
+
+    // Update target user's rating
+    const targetId = userRole === 'buyer' ? order.farmer : order.buyer;
+    const ratingsAgg = await Order.aggregate([
+      { $match: { $or: [{ buyer: targetId }, { farmer: targetId }] } },
+      {
+        $project: {
+          rating: {
+            $cond: [
+              { $eq: ['$buyer', targetId] },
+              '$ratings.buyer.rating',
+              '$ratings.farmer.rating'
+            ]
+          }
+        }
+      },
+      { $match: { rating: { $exists: true, $ne: null } } },
+      { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } }
+    ]);
+
+    if (ratingsAgg.length > 0) {
+      await User.findByIdAndUpdate(targetId, {
+        'rating.average': ratingsAgg[0].avg,
+        'rating.count': ratingsAgg[0].count
+      });
     }
 
-    // Initialize ratings object if it doesn't exist
-    if (!order.ratings) {
-      order.ratings = {};
-    }
-
-    // Update rating
-    order.ratings[userRole] = {
-      rating,
-      review,
-      date: new Date()
-    };
-
-    order.updatedAt = new Date();
-
-    // Update user rating
-    const targetUserId = userRole === 'buyer' ? order.farmer : order.buyer;
-    updateUserRating(targetUserId);
-
-    res.json({
-      success: true,
-      message: 'Rating submitted successfully'
-    });
+    res.json({ success: true, message: 'Rating submitted successfully' });
 
   } catch (error) {
     console.error('Add rating error:', error);
@@ -443,95 +355,26 @@ router.post('/:id/rating', auth, [
   }
 });
 
-// Helper function to update user rating
-function updateUserRating(userId) {
-  try {
-    const user = users.find(u => u.id === userId);
-    if (!user) return;
-
-    const userOrders = orders.filter(o => 
-      (o.buyer === userId && o.ratings?.buyer?.rating) ||
-      (o.farmer === userId && o.ratings?.farmer?.rating)
-    );
-
-    let totalRating = 0;
-    let ratingCount = 0;
-
-    userOrders.forEach(order => {
-      if (order.buyer === userId && order.ratings?.buyer?.rating) {
-        totalRating += order.ratings.buyer.rating;
-        ratingCount++;
-      }
-      if (order.farmer === userId && order.ratings?.farmer?.rating) {
-        totalRating += order.ratings.farmer.rating;
-        ratingCount++;
-      }
-    });
-
-    if (ratingCount > 0) {
-      user.rating = {
-        average: totalRating / ratingCount,
-        count: ratingCount
-      };
-    }
-  } catch (error) {
-    console.error('Update user rating error:', error);
-  }
-}
-
 // @route   GET /api/orders/:id/invoice
 // @desc    Get order invoice data
 // @access  Private
 router.get('/:id/invoice', auth, async (req, res) => {
   try {
-    const order = orders.find(o => o._id === req.params.id);
+    const order = await Order.findById(req.params.id)
+      .populate('buyer', 'name email phone')
+      .populate('farmer', 'name email phone')
+      .populate('items.crop', 'name variety images price quantity')
+      .lean();
 
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
+    if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    // Check if user is authorized to view this invoice
-    if (order.buyer !== req.user.id && order.farmer !== req.user.id) {
+    if (order.buyer._id.toString() !== req.user.id && order.farmer._id.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized to view this invoice' });
     }
 
-    // Populate order with user and crop data
-    const buyer = users.find(u => u.id === order.buyer);
-    const farmer = users.find(u => u.id === order.farmer);
-    
-    const invoiceData = {
-      ...order,
-      buyer: buyer ? { 
-        id: buyer.id, 
-        name: buyer.name, 
-        email: buyer.email, 
-        phone: buyer.phone 
-      } : null,
-      farmer: farmer ? { 
-        id: farmer.id, 
-        name: farmer.name, 
-        email: farmer.email, 
-        phone: farmer.phone 
-      } : null,
-      items: order.items.map(item => {
-        const crop = crops.find(c => c._id === item.crop);
-        return {
-          ...item,
-          crop: crop ? { 
-            _id: crop._id, 
-            name: crop.name, 
-            variety: crop.variety,
-            images: crop.images, 
-            price: crop.price, 
-            quantity: crop.quantity 
-          } : null
-        };
-      })
-    };
-
     res.json({
       success: true,
-      invoice: invoiceData
+      invoice: { ...order, _id: order._id.toString() }
     });
 
   } catch (error) {
@@ -545,58 +388,21 @@ router.get('/:id/invoice', auth, async (req, res) => {
 // @access  Private
 router.get('/:id', auth, async (req, res) => {
   try {
-    const order = orders.find(o => o._id === req.params.id);
+    const order = await Order.findById(req.params.id)
+      .populate('buyer', 'name email phone address')
+      .populate('farmer', 'name email phone address farmDetails businessDetails')
+      .populate('items.crop', 'name images price quantity category')
+      .lean();
 
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
+    if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    // Check if user is authorized to view this order
-    if (order.buyer !== req.user.id && order.farmer !== req.user.id) {
+    if (order.buyer._id.toString() !== req.user.id && order.farmer._id.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized to view this order' });
     }
 
-    // Populate order with user and crop data
-    const buyer = users.find(u => u.id === order.buyer);
-    const farmer = users.find(u => u.id === order.farmer);
-    
-    const populatedOrder = {
-      ...order,
-      buyer: buyer ? { 
-        id: buyer.id, 
-        name: buyer.name, 
-        email: buyer.email, 
-        phone: buyer.phone, 
-        address: buyer.address 
-      } : null,
-      farmer: farmer ? { 
-        id: farmer.id, 
-        name: farmer.name, 
-        email: farmer.email, 
-        phone: farmer.phone, 
-        address: farmer.address,
-        farmDetails: farmer.farmDetails,
-        businessDetails: farmer.businessDetails
-      } : null,
-      items: order.items.map(item => {
-        const crop = crops.find(c => c._id === item.crop);
-        return {
-          ...item,
-          crop: crop ? { 
-            _id: crop._id, 
-            name: crop.name, 
-            images: crop.images, 
-            price: crop.price, 
-            quantity: crop.quantity,
-            category: crop.category
-          } : null
-        };
-      })
-    };
-
     res.json({
       success: true,
-      order: populatedOrder
+      order: { ...order, _id: order._id.toString() }
     });
 
   } catch (error) {

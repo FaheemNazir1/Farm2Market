@@ -20,7 +20,7 @@ const cropSchema = new mongoose.Schema({
   },
   description: {
     type: String,
-    required: [true, 'Description is required'],
+    default: '',
     maxlength: [1000, 'Description cannot exceed 1000 characters']
   },
   farmer: {
@@ -47,7 +47,11 @@ const cropSchema = new mongoose.Schema({
   location: {
     state: { type: String, required: true },
     district: { type: String, required: true },
-    pincode: { type: String, required: true }
+    pincode: { type: String, required: true },
+    coordinates: {
+      latitude: { type: Number },
+      longitude: { type: Number }
+    }
   },
   harvestDate: {
     type: Date,

@@ -49,6 +49,7 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (email, password) => api.post('/auth/login', { email, password }),
   register: (userData) => api.post('/auth/register', userData),
+  googleLogin: (idToken, userType) => api.post('/auth/google', { idToken, userType }),
   getProfile: () => api.get('/auth/me'),
   logout: () => api.post('/auth/logout'),
   updateProfile: (profileData) => api.put('/users/profile', profileData),
@@ -99,14 +100,24 @@ export const ordersAPI = {
 
 // Payments API
 export const paymentsAPI = {
+  // Razorpay Standard Checkout APIs
+  createRazorpayOrder: (paymentData) => api.post('/payments/razorpay/create-order', paymentData),
+  verifyRazorpayPayment: (verificationData) => api.post('/payments/razorpay/verify', verificationData),
   createPaymentIntent: (paymentData) => api.post('/payments/create-payment-intent', paymentData),
   confirmPayment: (paymentData) => api.post('/payments/confirm-payment', paymentData),
   processCOD: (orderId) => api.post('/payments/cod', { orderId }),
   getPaymentMethods: () => api.get('/payments/methods'),
-  // UPI Payment APIs
+  // Legacy UPI Payment APIs
   createUPIOrder: (orderData) => api.post('/payments/upi/create-order', orderData),
   verifyUPIPayment: (verificationData) => api.post('/payments/upi/verify', verificationData),
   simulateUPIPayment: (paymentData) => api.post('/payments/upi/simulate', paymentData),
+};
+
+// Cart API
+export const cartAPI = {
+  getCart: () => api.get('/cart'),
+  syncCart: (items) => api.post('/cart', { items }),
+  clearCart: () => api.delete('/cart'),
 };
 
 export default api;

@@ -4,7 +4,6 @@ import {
   User, 
   Mail, 
   Phone, 
-  MapPin, 
   Camera, 
   Save, 
   Edit3,

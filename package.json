@@ -4,6 +4,8 @@
   "description": "A Digital Bridge for Maximizing Farmer Profits - Smart India Hackathon 2025",
   "private": true,
   "scripts": {
+    "start": "node server/index.js",
+    "start:server": "node server/index.js",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run start --prefix client",
@@ -11,10 +13,17 @@
     "client": "npm run start --prefix client",
     "build": "node scripts/vercel-build.js",
     "build:client": "npm run build --prefix client",
+    "build:server": "npm install --prefix server --production",
     "install:all": "npm install && npm install --prefix server && npm install --prefix client",
     "test": "npm run test:server && npm run test:client",
     "test:server": "npm run test --prefix server",
-    "test:client": "npm run test --prefix client -- --watchAll=false"
+    "test:client": "npm run test --prefix client -- --watchAll=false",
+    "test:automated": "node tests/automated/test-4-features.js",
+    "test:crop-description": "node tests/automated/test-crop-description-validation.js",
+    "test:farmer-buying": "node tests/automated/test-farmer-buying-and-google-auth.js",
+    "test:cart": "node tests/automated/test-cart-flow.js",
+    "test:cart-isolation": "node tests/automated/test-cart-checkout-cod-isolation.js",
+    "test:razorpay": "node tests/automated/test-razorpay-integration.js"
   },
   "keywords": [
     "agriculture",

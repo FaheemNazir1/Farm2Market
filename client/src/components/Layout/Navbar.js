@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import LanguageSwitcher from '../LanguageSwitcher';
@@ -12,14 +13,14 @@ import {
   UserCheck,
   BarChart3,
   Sprout,
-  PlusCircle,
-  Sparkles
+  PlusCircle
 } from 'lucide-react';
 
 const Navbar = () => {
+  const { t } = useTranslation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const { user, logout, isAuthenticated, isFarmer, isBuyer } = useAuth();
+  const { user, logout, isAuthenticated, isFarmer } = useAuth();
   const { getCartItemsCount } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
@@ -38,10 +39,10 @@ const Navbar = () => {
   const cartItemsCount = getCartItemsCount();
 
   const navLinks = [
-    { name: 'Home', path: '/' },
-    { name: 'Marketplace', path: '/marketplace' },
-    { name: 'About', path: '/about' },
-    { name: 'Contact', path: '/contact' },
+    { name: t('nav.home', 'Home'), path: '/' },
+    { name: t('nav.marketplace', 'Marketplace'), path: '/marketplace' },
+    { name: t('nav.about', 'About Us'), path: '/about' },
+    { name: t('nav.contact', 'Contact'), path: '/contact' },
   ];
 
   return (
@@ -101,12 +102,12 @@ const Navbar = () => {
                 className="hidden lg:inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300/80 transition-all duration-200 shadow-sm"
               >
                 <PlusCircle className="w-4 h-4 text-emerald-600" />
-                <span>List Produce</span>
+                <span>{t('nav.addCrop', 'Add New Crop')}</span>
               </Link>
             )}
 
-            {/* Shopping Cart (Buyers) */}
-            {isAuthenticated && isBuyer && (
+            {/* Shopping Cart (Buyers & Farmers) */}
+            {isAuthenticated && (
               <Link
                 to="/cart"
                 className="relative p-2.5 rounded-xl bg-slate-100/80 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 transition-all duration-200"
@@ -134,84 +135,73 @@ const Navbar = () => {
                   <div className="hidden lg:block text-left">
                     <p className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[100px]">{user?.name}</p>
                     <span className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700">
-                      {user?.userType || 'User'}
+                      {user?.userType === 'farmer' ? t('nav.roleFarmer', 'Farmer') : user?.userType === 'buyer' ? t('nav.roleBuyer', 'Buyer') : user?.userType || 'User'}
                     </span>
                   </div>
                 </button>
 
+                {/* Profile Dropdown Menu */}
                 {isProfileMenuOpen && (
-                  <div className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 animate-fade-in divide-y divide-slate-100">
-                    <div className="px-4 py-3">
-                      <p className="text-sm font-bold text-slate-900">{user?.name}</p>
-                      <p className="text-xs text-slate-500 truncate">{user?.email}</p>
-                      <div className="mt-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800">
-                        {user?.userType === 'farmer' ? '🌾 Farmer' : user?.userType === 'buyer' ? '🛒 Buyer' : '🛡️ Admin'}
-                      </div>
+                  <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white shadow-xl border border-slate-100 py-2 z-50 animate-scale-up">
+                    <div className="px-4 py-2 border-b border-slate-100">
+                      <p className="text-xs font-bold text-slate-900 truncate">{user?.name}</p>
+                      <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
                     </div>
 
                     <div className="py-1">
                       <Link
                         to="/dashboard"
-                        className="flex items-center space-x-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                        className="flex items-center space-x-2 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-700"
                         onClick={() => setIsProfileMenuOpen(false)}
                       >
                         <BarChart3 className="w-4 h-4 text-emerald-600" />
-                        <span>Dashboard</span>
+                        <span>{t('nav.dashboard', 'Dashboard')}</span>
                       </Link>
-                      <Link
-                        to="/profile"
-                        className="flex items-center space-x-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                        onClick={() => setIsProfileMenuOpen(false)}
-                      >
-                        <UserCheck className="w-4 h-4 text-emerald-600" />
-                        <span>Profile Settings</span>
-                      </Link>
+
                       <Link
                         to="/orders"
-                        className="flex items-center space-x-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                        className="flex items-center space-x-2 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-700"
                         onClick={() => setIsProfileMenuOpen(false)}
                       >
                         <Package className="w-4 h-4 text-emerald-600" />
-                        <span>My Orders</span>
+                        <span>{t('nav.myOrders', 'My Orders')}</span>
                       </Link>
-                      {isFarmer && (
-                        <Link
-                          to="/crops/new"
-                          className="flex items-center space-x-2.5 px-4 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
-                          onClick={() => setIsProfileMenuOpen(false)}
-                        >
-                          <PlusCircle className="w-4 h-4 text-emerald-600" />
-                          <span>Add New Crop</span>
-                        </Link>
-                      )}
+
+                      <Link
+                        to="/profile"
+                        className="flex items-center space-x-2 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-700"
+                        onClick={() => setIsProfileMenuOpen(false)}
+                      >
+                        <UserCheck className="w-4 h-4 text-emerald-600" />
+                        <span>{t('nav.profile', 'Profile Settings')}</span>
+                      </Link>
                     </div>
 
-                    <div className="py-1">
+                    <div className="border-t border-slate-100 pt-1">
                       <button
                         onClick={handleLogout}
-                        className="flex items-center space-x-2.5 px-4 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-50 w-full text-left transition-colors"
+                        className="w-full flex items-center space-x-2 px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50"
                       >
-                        <LogOut className="w-4 h-4 text-rose-500" />
-                        <span>Log Out</span>
+                        <LogOut className="w-4 h-4" />
+                        <span>{t('nav.logout', 'Log Out')}</span>
                       </button>
                     </div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="flex items-center space-x-2">
+              <div className="hidden sm:flex items-center space-x-2">
                 <Link
                   to="/login"
-                  className="btn-ghost text-sm hidden sm:inline-flex"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors"
                 >
-                  Log In
+                  {t('nav.login', 'Log In')}
                 </Link>
                 <Link
                   to="/register"
-                  className="btn-primary text-xs sm:text-sm py-2 px-4 sm:px-5"
+                  className="btn-primary text-xs px-4 py-2 font-bold shadow-md shadow-emerald-600/20"
                 >
-                  <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                  Get Started
+                  {t('nav.register', 'Get Started')}
                 </Link>
               </div>
             )}
@@ -248,7 +238,7 @@ const Navbar = () => {
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between px-3">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Language</span>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('nav.language', 'Language')}</span>
               <LanguageSwitcher />
             </div>
 
@@ -259,14 +249,14 @@ const Navbar = () => {
                   className="btn-secondary text-sm py-2.5 justify-center"
                   onClick={() => setIsMenuOpen(false)}
                 >
-                  Log In
+                  {t('nav.login', 'Log In')}
                 </Link>
                 <Link
                   to="/register"
                   className="btn-primary text-sm py-2.5 justify-center"
                   onClick={() => setIsMenuOpen(false)}
                 >
-                  Sign Up
+                  {t('nav.register', 'Get Started')}
                 </Link>
               </div>
             )}

@@ -1,41 +1,70 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from 'react-query';
+import { useTranslation } from 'react-i18next';
 import { cropsAPI } from '../services/api';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
+import { getCurrentGPSLocation, reverseGeocode } from '../utils/geolocation';
+import { getCropShareWhatsAppLink } from '../utils/whatsapp';
 import { ScrollReveal } from '../components/UI/ScrollReveal';
+import CropsMapView from '../components/CropsMapView';
 import { 
   Search, 
   Filter, 
   ShoppingCart, 
   MapPin, 
-  Calendar,
   Leaf,
   Sparkles,
   RotateCcw,
   SlidersHorizontal,
-  ChevronRight
+  ChevronRight,
+  Compass,
+  Map,
+  Share2
 } from 'lucide-react';
 import LoadingSpinner from '../components/UI/LoadingSpinner';
 import toast from 'react-hot-toast';
 
 const Marketplace = () => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
+  
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [filters, setFilters] = useState({
-    category: '',
+    category: searchParams.get('category') || '',
     state: '',
     minPrice: '',
     maxPrice: '',
     organic: false,
     sortBy: 'createdAt',
-    sortOrder: 'desc'
+    sortOrder: 'desc',
+    latitude: null,
+    longitude: null,
+    radius: '50' // Default 50 km when GPS is active
   });
+
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
+  const [userLocation, setUserLocation] = useState(null);
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [showMapModal, setShowMapModal] = useState(false);
 
   const { addToCart, canAddToCart } = useCart();
-  const { isAuthenticated, isBuyer } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+
+  // If URL query has search or category, sync state
+  useEffect(() => {
+    if (searchParams.get('category')) {
+      setFilters(prev => ({ ...prev, category: searchParams.get('category') }));
+    }
+    if (searchParams.get('search')) {
+      setSearchTerm(searchParams.get('search'));
+    }
+    if (searchParams.get('nearMe') === 'true') {
+      handleDetectLocation();
+    }
+  }, [searchParams]);
 
   const { data: cropsData, isLoading, error } = useQuery(
     ['crops', { ...filters, search: searchTerm, page }],
@@ -72,13 +101,49 @@ const Marketplace = () => {
     setPage(1);
   };
 
+  // User-initiated GPS Location detection
+  const handleDetectLocation = async () => {
+    setIsDetectingLocation(true);
+    try {
+      const position = await getCurrentGPSLocation();
+      setUserLocation(position);
+
+      const address = await reverseGeocode(position.latitude, position.longitude);
+      setUserLocation(prev => ({ ...prev, ...address }));
+
+      setFilters(prev => ({
+        ...prev,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        sortBy: 'distance'
+      }));
+      toast.success(`Location detected: ${address.district || address.city}, ${address.state}`);
+    } catch (err) {
+      console.warn('GPS location request:', err.message);
+      toast.error(err.message || 'Unable to retrieve your current location');
+    } finally {
+      setIsDetectingLocation(false);
+    }
+  };
+
+  const handleClearLocation = () => {
+    setUserLocation(null);
+    setFilters(prev => ({
+      ...prev,
+      latitude: null,
+      longitude: null,
+      sortBy: 'createdAt'
+    }));
+    toast('Location filter removed', { icon: '📍' });
+  };
+
   const handleAddToCart = (crop) => {
     if (!isAuthenticated) {
       toast.error('Please login to add items to cart');
       return;
     }
-    if (!isBuyer) {
-      toast.error('Only buyers can add items to cart');
+    if (user && (crop.farmer === user.id || crop.farmer?._id === user.id)) {
+      toast.error('You cannot add your own crop listing to cart');
       return;
     }
     if (!canAddToCart(crop)) {
@@ -89,20 +154,21 @@ const Marketplace = () => {
     toast.success(`Added ${crop.name} to cart!`);
   };
 
+  const handleShareWhatsApp = (crop, e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const link = getCropShareWhatsAppLink(crop);
+    window.open(link, '_blank');
+  };
+
   const formatPrice = (price) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
       maximumFractionDigits: 0
-    }).format(price);
-  };
-
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+    }).format(price || 0);
   };
 
   if (error) {
@@ -136,24 +202,37 @@ const Marketplace = () => {
                 <span>Live Produce Catalog</span>
               </span>
               <h1 className="text-3xl sm:text-4xl font-black font-heading tracking-tight">
-                Direct Agricultural Marketplace
+                {t('marketplace.title', 'Fresh Produce Marketplace')}
               </h1>
               <p className="text-emerald-100/80 text-sm sm:text-base max-w-2xl">
-                Browse freshly harvested crops directly from verified Indian farmers. No middlemen, transparent pricing, and quality guarantee.
+                {t('marketplace.subtitle', 'Browse freshly harvested crops directly from verified Indian farmers.')}
               </p>
             </div>
 
-            {/* Quick Search in Banner */}
-            <form onSubmit={handleSearch} className="w-full md:w-80 relative">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search crops, varieties..."
-                className="w-full pl-10 pr-4 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl text-white placeholder-emerald-200/60 focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm shadow-inner"
-              />
-              <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-emerald-300" />
-            </form>
+            {/* Quick Search & Actions */}
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <form onSubmit={handleSearch} className="w-full sm:w-72 relative">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder={t('marketplace.search', 'Search crops, farmers...')}
+                  className="w-full pl-10 pr-4 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl text-white placeholder-emerald-200/60 focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm shadow-inner"
+                />
+                <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-emerald-300" />
+              </form>
+
+              {/* Map View Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setShowMapModal(true)}
+                className="w-full sm:w-auto px-4 py-3 bg-emerald-700/80 hover:bg-emerald-600/90 text-white rounded-2xl font-bold text-sm border border-emerald-500/40 shadow-md flex items-center justify-center space-x-2 transition-colors"
+                title="View on Map"
+              >
+                <Map className="w-4 h-4" />
+                <span>{t('marketplace.mapView', 'Map View')}</span>
+              </button>
+            </div>
           </div>
 
           {/* Quick Category Chips */}
@@ -191,7 +270,9 @@ const Marketplace = () => {
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center space-x-2">
                   <SlidersHorizontal className="w-5 h-5 text-emerald-600" />
-                  <h3 className="font-bold text-slate-900 font-heading text-lg">Filter Listings</h3>
+                  <h3 className="font-bold text-slate-900 font-heading text-lg">
+                    {t('marketplace.filters', 'Filter Listings')}
+                  </h3>
                 </div>
                 <button
                   onClick={() => setShowFilters(!showFilters)}
@@ -203,10 +284,74 @@ const Marketplace = () => {
 
               <div className={`space-y-6 ${showFilters ? 'block' : 'hidden lg:block'}`}>
                 
+                {/* GPS / Geolocation "Near Me" Filter */}
+                <div className="p-4 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-emerald-900 uppercase tracking-wider flex items-center space-x-1.5">
+                      <Compass className="w-4 h-4 text-emerald-700" />
+                      <span>{t('marketplace.nearMe', 'GPS Near Me')}</span>
+                    </span>
+                    {userLocation && (
+                      <button
+                        onClick={handleClearLocation}
+                        className="text-[10px] font-bold text-rose-600 hover:underline"
+                      >
+                        Clear GPS
+                      </button>
+                    )}
+                  </div>
+
+                  {userLocation ? (
+                    <div className="space-y-2">
+                      <div className="p-2 bg-white rounded-xl border border-emerald-200 text-xs text-slate-700">
+                        <p className="font-bold text-emerald-800">
+                          📍 {userLocation.district || userLocation.city || 'Nearby'}, {userLocation.state || ''}
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Sorted by nearest distance</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                          {t('marketplace.distance', 'Radius')}
+                        </label>
+                        <select
+                          value={filters.radius}
+                          onChange={(e) => handleFilterChange('radius', e.target.value)}
+                          className="input-field text-xs py-1.5"
+                        >
+                          <option value="25">{t('marketplace.within25', 'Within 25 km')}</option>
+                          <option value="50">{t('marketplace.within50', 'Within 50 km')}</option>
+                          <option value="100">{t('marketplace.within100', 'Within 100 km')}</option>
+                          <option value="all">{t('marketplace.allIndia', 'All India')}</option>
+                        </select>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleDetectLocation}
+                      disabled={isDetectingLocation}
+                      className="w-full btn-primary text-xs py-2.5 justify-center shadow-sm"
+                    >
+                      {isDetectingLocation ? (
+                        <>
+                          <LoadingSpinner size="small" />
+                          <span className="ml-1.5">Detecting GPS...</span>
+                        </>
+                      ) : (
+                        <>
+                          <MapPin className="w-3.5 h-3.5 mr-1" />
+                          <span>Find Crops Near Me</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
                 {/* State Location */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                    Region / State
+                    {t('marketplace.location', 'Region / State')}
                   </label>
                   <select
                     value={filters.state}
@@ -222,7 +367,7 @@ const Marketplace = () => {
                 {/* Price Range */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                    Price Range (₹/unit)
+                    {t('marketplace.priceRange', 'Price Range (₹/unit)')}
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <input
@@ -253,7 +398,7 @@ const Marketplace = () => {
                     />
                     <div className="flex items-center space-x-1 text-sm font-semibold text-emerald-900">
                       <Leaf className="w-4 h-4 text-emerald-600" />
-                      <span>Certified Organic Only</span>
+                      <span>{t('marketplace.organic', 'Certified Organic Only')}</span>
                     </div>
                   </label>
                 </div>
@@ -261,21 +406,25 @@ const Marketplace = () => {
                 {/* Sorting */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                    Sort Order
+                    {t('marketplace.sortBy', 'Sort Order')}
                   </label>
                   <select
-                    value={`${filters.sortBy}-${filters.sortOrder}`}
+                    value={filters.sortBy === 'distance' ? 'distance' : `${filters.sortBy}-${filters.sortOrder}`}
                     onChange={(e) => {
-                      const [sortBy, sortOrder] = e.target.value.split('-');
-                      handleFilterChange('sortBy', sortBy);
-                      handleFilterChange('sortOrder', sortOrder);
+                      if (e.target.value === 'distance') {
+                        handleFilterChange('sortBy', 'distance');
+                      } else {
+                        const [sortBy, sortOrder] = e.target.value.split('-');
+                        handleFilterChange('sortBy', sortBy);
+                        handleFilterChange('sortOrder', sortOrder);
+                      }
                     }}
                     className="input-field text-sm"
                   >
-                    <option value="createdAt-desc">Newest Listings First</option>
-                    <option value="createdAt-asc">Oldest Listings First</option>
-                    <option value="price.perUnit-asc">Price: Low to High</option>
-                    <option value="price.perUnit-desc">Price: High to Low</option>
+                    {userLocation && <option value="distance">📍 Nearest Distance (GPS)</option>}
+                    <option value="createdAt-desc">{t('marketplace.newest', 'Newest Listings First')}</option>
+                    <option value="price.perUnit-asc">{t('marketplace.priceLow', 'Price: Low to High')}</option>
+                    <option value="price.perUnit-desc">{t('marketplace.priceHigh', 'Price: High to Low')}</option>
                     <option value="views-desc">Most Viewed</option>
                   </select>
                 </div>
@@ -290,8 +439,12 @@ const Marketplace = () => {
                       maxPrice: '',
                       organic: false,
                       sortBy: 'createdAt',
-                      sortOrder: 'desc'
+                      sortOrder: 'desc',
+                      latitude: null,
+                      longitude: null,
+                      radius: '50'
                     });
+                    setUserLocation(null);
                     setSearchTerm('');
                     setPage(1);
                   }}
@@ -310,22 +463,35 @@ const Marketplace = () => {
           <main className="flex-1">
             
             {/* Results Header */}
-            <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-6 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
               <div>
                 <p className="text-sm font-bold text-slate-900">
-                  {cropsData?.pagination?.total || 0} Crops Available
+                  {cropsData?.pagination?.total || cropsData?.crops?.length || 0} Crops Available
                 </p>
                 <p className="text-xs text-slate-500">
-                  Showing freshly sourced farm produce
+                  {userLocation 
+                    ? `Showing produce near ${userLocation.district || 'your location'} (Within ${filters.radius === 'all' ? 'All India' : `${filters.radius} km`})`
+                    : 'Showing verified direct farm listings'
+                  }
                 </p>
               </div>
 
-              {filters.organic && (
-                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 flex items-center space-x-1">
-                  <Leaf className="w-3 h-3" />
-                  <span>Organic Filter Active</span>
-                </span>
-              )}
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setShowMapModal(true)}
+                  className="btn-secondary text-xs py-1.5 px-3 flex items-center space-x-1"
+                >
+                  <Map className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{t('marketplace.mapView', 'Map View')}</span>
+                </button>
+
+                {filters.organic && (
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 flex items-center space-x-1">
+                    <Leaf className="w-3 h-3" />
+                    <span>Organic</span>
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Loading Skeleton or Cards */}
@@ -333,18 +499,40 @@ const Marketplace = () => {
               <div className="flex justify-center py-20">
                 <LoadingSpinner size="large" />
               </div>
+            ) : cropsData?.crops?.length === 0 ? (
+              <div className="card text-center py-16 px-4 space-y-4">
+                <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto text-2xl font-bold">
+                  🌾
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 font-heading">
+                  {t('marketplace.noResults', 'No crops found matching criteria')}
+                </h3>
+                <p className="text-sm text-slate-500 max-w-md mx-auto">
+                  Try adjusting your distance radius, removing filters, or searching for other fresh produce varieties.
+                </p>
+                <button
+                  onClick={() => {
+                    handleClearLocation();
+                    setFilters(prev => ({ ...prev, category: '', state: '', minPrice: '', maxPrice: '', organic: false }));
+                  }}
+                  className="btn-secondary text-xs py-2 px-4 inline-flex items-center space-x-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Clear All Filters</span>
+                </button>
+              </div>
             ) : (
               <>
                 {/* Cards Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {cropsData?.crops?.map((crop, index) => (
-                    <ScrollReveal key={crop._id} animation="fade-up" delay={index * 60}>
-                      <div className="card-hover p-0 overflow-hidden bg-white flex flex-col justify-between h-full group">
+                    <ScrollReveal key={crop._id} animation="fade-up" delay={index * 50}>
+                      <div className="card-hover p-0 overflow-hidden bg-white flex flex-col justify-between h-full group border border-slate-200/80 shadow-md">
                         
                         {/* Image Header with Badges */}
                         <div className="relative h-48 bg-slate-100 overflow-hidden">
                           <img
-                            src={crop.images?.[0]?.url || '/uploads/crops/1760276060831-671568258.jpeg'}
+                            src={crop.images?.[0]?.url || 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=600&q=80'}
                             alt={crop.name}
                             className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                             onError={(e) => {
@@ -363,14 +551,28 @@ const Marketplace = () => {
                             )}
                           </div>
 
-                          {/* Harvest Date Tag */}
+                          {/* Quick WhatsApp Share Icon */}
+                          <button
+                            type="button"
+                            onClick={(e) => handleShareWhatsApp(crop, e)}
+                            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 text-emerald-600 hover:bg-emerald-600 hover:text-white shadow-md flex items-center justify-center transition-colors"
+                            title="Share on WhatsApp"
+                          >
+                            <Share2 className="w-4 h-4" />
+                          </button>
+
+                          {/* Distance or Location Badge */}
                           <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-lg bg-slate-900/80 text-white text-[11px] font-semibold backdrop-blur-md flex items-center space-x-1">
-                            <Calendar className="w-3 h-3 text-emerald-400" />
-                            <span>Harvest: {formatDate(crop.harvestDate)}</span>
+                            <MapPin className="w-3 h-3 text-emerald-400" />
+                            {crop.distance !== undefined && crop.distance !== null ? (
+                              <span className="font-bold text-emerald-300">{crop.distance} km away</span>
+                            ) : (
+                              <span>{crop.location?.district || crop.location?.state}, {crop.location?.state}</span>
+                            )}
                           </div>
 
                           {/* Quantity Available */}
-                          <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-white/95 text-slate-900 text-xs font-black shadow-md border border-slate-200">
+                          <div className="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-white/95 text-slate-900 text-xs font-black shadow-md border border-slate-200">
                             {crop.quantity?.value} {crop.quantity?.unit}
                           </div>
                         </div>
@@ -392,8 +594,7 @@ const Marketplace = () => {
                             {/* Location & Farmer Info */}
                             <div className="flex items-center justify-between text-xs text-slate-500 py-2 border-y border-slate-100">
                               <div className="flex items-center space-x-1 text-slate-600">
-                                <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>{crop.location?.district || crop.location?.state}, {crop.location?.state}</span>
+                                <span>📍 {crop.location?.district || 'Farm Location'}</span>
                               </div>
                               <div className="flex items-center space-x-1 font-semibold text-slate-700">
                                 <span>👨‍🌾 {crop.farmer?.name || 'Local Farmer'}</span>
@@ -423,25 +624,16 @@ const Marketplace = () => {
                                 <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
                               </Link>
 
-                              {isBuyer ? (
                                 <button
                                   onClick={() => handleAddToCart(crop)}
                                   disabled={!canAddToCart(crop)}
                                   className="btn-primary text-xs py-2 justify-center font-bold disabled:opacity-50"
                                 >
                                   <ShoppingCart className="w-3.5 h-3.5 mr-1" />
-                                  <span>Add</span>
+                                  <span>{t('crop.addToCart', 'Add')}</span>
                                 </button>
-                              ) : (
-                                <Link
-                                  to={`/crop/${crop._id}`}
-                                  className="btn-primary text-xs py-2 justify-center font-bold"
-                                >
-                                  <span>Buy Now</span>
-                                </Link>
-                              )}
+                              </div>
                             </div>
-                          </div>
 
                         </div>
 
@@ -449,36 +641,6 @@ const Marketplace = () => {
                     </ScrollReveal>
                   ))}
                 </div>
-
-                {/* Empty State */}
-                {cropsData?.crops?.length === 0 && (
-                  <div className="card text-center py-16 max-w-lg mx-auto space-y-4">
-                    <div className="w-20 h-20 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto text-3xl">
-                      🔍
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-900">No Produce Matches Your Search</h3>
-                    <p className="text-slate-600 text-sm">
-                      Try expanding your price range or clearing active filters to see all available listings.
-                    </p>
-                    <button
-                      onClick={() => {
-                        setFilters({
-                          category: '',
-                          state: '',
-                          minPrice: '',
-                          maxPrice: '',
-                          organic: false,
-                          sortBy: 'createdAt',
-                          sortOrder: 'desc'
-                        });
-                        setSearchTerm('');
-                      }}
-                      className="btn-primary text-sm"
-                    >
-                      Clear All Filters
-                    </button>
-                  </div>
-                )}
               </>
             )}
 
@@ -487,6 +649,15 @@ const Marketplace = () => {
         </div>
 
       </div>
+
+      {/* Interactive OpenStreetMap Modal */}
+      {showMapModal && (
+        <CropsMapView
+          crops={cropsData?.crops || []}
+          userLocation={userLocation}
+          onClose={() => setShowMapModal(false)}
+        />
+      )}
 
     </div>
   );

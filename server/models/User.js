@@ -6,14 +6,14 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Name is required'],
     trim: true,
-    maxlength: [50, 'Name cannot exceed 50 characters']
+    maxlength: [100, 'Name cannot exceed 100 characters']
   },
   email: {
     type: String,
     required: [true, 'Email is required'],
     unique: true,
     lowercase: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
+    trim: true
   },
   password: {
     type: String,
@@ -23,23 +23,24 @@ const userSchema = new mongoose.Schema({
   phone: {
     type: String,
     required: [true, 'Phone number is required'],
-    match: [/^[6-9]\d{9}$/, 'Please enter a valid 10-digit phone number']
+    // Allow standard 10-digit numbers AND placeholder for Google/OAuth users
+    match: [/^[0-9]{10,11}$/, 'Please enter a valid phone number']
   },
   userType: {
     type: String,
     enum: ['farmer', 'buyer', 'admin'],
-    default: 'farmer'
+    default: 'buyer'
   },
   address: {
-    street: { type: String, required: true },
-    city: { type: String, required: true },
-    state: { type: String, required: true },
-    pincode: { 
-      type: String, 
-      required: true,
-      match: [/^\d{6}$/, 'Please enter a valid 6-digit pincode']
-    },
-    country: { type: String, default: 'India' }
+    street: { type: String, default: '' },
+    city: { type: String, default: '' },
+    state: { type: String, default: '' },
+    pincode: { type: String, default: '000000' },
+    country: { type: String, default: 'India' },
+    coordinates: {
+      latitude: Number,
+      longitude: Number
+    }
   },
   profileImage: {
     type: String,
@@ -49,10 +50,24 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
   verificationToken: String,
   resetPasswordToken: String,
   resetPasswordExpire: Date,
-  // Farmer specific fields
+  // OAuth fields
+  authProvider: {
+    type: String,
+    enum: ['local', 'google'],
+    default: 'local'
+  },
+  firebaseUid: {
+    type: String,
+    default: null
+  },
+  // Farmer-specific fields
   farmDetails: {
     farmName: String,
     farmSize: String,
@@ -60,7 +75,7 @@ const userSchema = new mongoose.Schema({
     certifications: [String],
     organicCertified: { type: Boolean, default: false }
   },
-  // Buyer specific fields
+  // Buyer-specific fields
   businessDetails: {
     businessName: String,
     businessType: String,
@@ -70,21 +85,16 @@ const userSchema = new mongoose.Schema({
   rating: {
     average: { type: Number, default: 0 },
     count: { type: Number, default: 0 }
-  },
-  isActive: {
-    type: Boolean,
-    default: true
   }
 }, {
   timestamps: true
 });
 
-// Encrypt password before saving
+// Hash password before saving — ONLY when password field is modified
 userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
-    next();
-  }
+  if (!this.isModified('password')) return next();
   this.password = await bcrypt.hash(this.password, 12);
+  next();
 });
 
 // Compare password method

@@ -3,6 +3,7 @@ const { seedUsers, seedCrops } = require('./seedData');
 let users = [];
 let crops = [];
 let orders = []; // Define orders array here
+let carts = new Map(); // userId -> cart items array
 
 // Initialize with seed data
 const initializeDatabase = async () => {
@@ -51,4 +52,4 @@ const initializeDatabase = async () => {
 // Initialize database on startup
 initializeDatabase();
 
-module.exports = { users, crops, orders };
+module.exports = { users, crops, orders, carts };

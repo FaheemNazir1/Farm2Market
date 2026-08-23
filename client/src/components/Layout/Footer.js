@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { 
   Mail, 
   Phone, 
   MapPin, 
   Sprout, 
-  Heart,
-  Send,
-  ShieldCheck
+  Send, 
+  ShieldCheck,
+  MessageCircle
 } from 'lucide-react';
+import { getSupportWhatsAppLink, WHATSAPP_SUPPORT_NUMBER } from '../../utils/whatsapp';
 import toast from 'react-hot-toast';
 
 const Footer = () => {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
 
   const handleSubscribe = (e) => {
@@ -33,10 +36,10 @@ const Footer = () => {
         <div className="p-8 rounded-3xl bg-gradient-to-r from-emerald-900/40 via-slate-900 to-teal-950 border border-emerald-500/20 mb-16 shadow-xl flex flex-col lg:flex-row items-center justify-between gap-8">
           <div className="space-y-2 text-center lg:text-left">
             <h3 className="text-2xl font-black text-white font-heading">
-              Stay Updated with Mandi & Crop Prices
+              {t('footer.mandiUpdates', 'Stay Updated with Mandi & Crop Prices')}
             </h3>
             <p className="text-sm text-emerald-200/80 max-w-xl">
-              Get weekly agricultural price trend reports, seasonal harvest advisories, and organic farming insights directly to your inbox.
+              {t('footer.mandiSub', 'Get weekly agricultural price trend reports, seasonal harvest advisories, and organic farming insights directly to your inbox.')}
             </p>
           </div>
           <form onSubmit={handleSubscribe} className="flex w-full lg:w-auto gap-2">
@@ -48,7 +51,7 @@ const Footer = () => {
               className="px-4 py-3 bg-slate-900/90 border border-emerald-500/30 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 w-full sm:w-72"
             />
             <button type="submit" className="btn-primary text-sm px-5 py-3 flex-shrink-0">
-              <span>Subscribe</span>
+              <span>{t('footer.subscribe', 'Subscribe')}</span>
               <Send className="w-4 h-4 ml-1.5" />
             </button>
           </form>
@@ -69,7 +72,7 @@ const Footer = () => {
             </Link>
 
             <p className="text-slate-400 text-sm leading-relaxed max-w-sm">
-              Empowering India's farmers with direct-to-buyer agricultural commerce. Eliminating exploitative middlemen and delivering freshness from field to table.
+              {t('footer.brandDesc', "Empowering India's farmers with direct-to-buyer agricultural commerce. Eliminating exploitative middlemen and delivering freshness from field to table.")}
             </p>
 
             <div className="pt-2 flex items-center space-x-2 text-xs font-semibold text-emerald-400">
@@ -81,27 +84,27 @@ const Footer = () => {
           {/* Quick Links */}
           <div className="space-y-4">
             <h4 className="text-sm font-bold text-white uppercase tracking-wider font-heading">
-              Platform
+              {t('footer.platform', 'Platform')}
             </h4>
             <ul className="space-y-2.5 text-sm">
               <li>
                 <Link to="/" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  Home
+                  {t('nav.home', 'Home')}
                 </Link>
               </li>
               <li>
                 <Link to="/marketplace" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  Produce Marketplace
+                  {t('nav.marketplace', 'Marketplace')}
                 </Link>
               </li>
               <li>
                 <Link to="/about" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  Our Mission & Story
+                  {t('nav.about', 'About Us')}
                 </Link>
               </li>
               <li>
                 <Link to="/contact" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  Contact Support
+                  {t('nav.contact', 'Contact')}
                 </Link>
               </li>
             </ul>
@@ -110,27 +113,22 @@ const Footer = () => {
           {/* For Farmers */}
           <div className="space-y-4">
             <h4 className="text-sm font-bold text-white uppercase tracking-wider font-heading">
-              For Farmers
+              {t('footer.forFarmers', 'For Farmers')}
             </h4>
             <ul className="space-y-2.5 text-sm">
               <li>
                 <Link to="/register?type=farmer" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  Farmer Registration
+                  {t('home.joinAsFarmer', 'Join as a Farmer')}
                 </Link>
               </li>
               <li>
                 <Link to="/crops/new" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  List Your Harvest
+                  {t('nav.addCrop', 'Add New Crop')}
                 </Link>
               </li>
               <li>
                 <Link to="/dashboard" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  Farmer Dashboard
-                </Link>
-              </li>
-              <li>
-                <Link to="/about" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  Fair Price Guarantee
+                  {t('nav.dashboard', 'Dashboard')}
                 </Link>
               </li>
             </ul>
@@ -139,9 +137,18 @@ const Footer = () => {
           {/* Contact Details */}
           <div className="space-y-4">
             <h4 className="text-sm font-bold text-white uppercase tracking-wider font-heading">
-              Helpline & Office
+              {t('footer.support', 'Helpline & Office')}
             </h4>
             <div className="space-y-3 text-sm text-slate-400">
+              <a
+                href={getSupportWhatsAppLink()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center space-x-2 text-[#25D366] hover:text-[#20bd5a] font-bold text-xs bg-emerald-950/60 border border-emerald-800/60 px-3 py-2 rounded-xl transition-colors"
+              >
+                <MessageCircle className="w-4 h-4 fill-current" />
+                <span>{t('footer.whatsappHelpline', 'WhatsApp Support:')} {WHATSAPP_SUPPORT_NUMBER}</span>
+              </a>
               <div className="flex items-center space-x-3">
                 <Mail className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                 <span className="truncate">support@farm2market.in</span>
@@ -162,17 +169,17 @@ const Footer = () => {
         {/* Bottom Copyright & Legal */}
         <div className="border-t border-slate-900 mt-16 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-slate-500">
           <div>
-            © {new Date().getFullYear()} Farm2Market. Built with <Heart className="w-3.5 h-3.5 text-rose-500 inline fill-current" /> for Indian Farmers.
+            © {new Date().getFullYear()} Farm2Market. {t('footer.rights', 'All rights reserved. Built with ❤️ for Indian Farmers.')}
           </div>
           <div className="flex space-x-6">
             <Link to="/about" className="hover:text-slate-400 transition-colors">
-              Privacy Policy
+              {t('footer.privacy', 'Privacy Policy')}
             </Link>
             <Link to="/about" className="hover:text-slate-400 transition-colors">
-              Terms of Service
+              {t('footer.terms', 'Terms of Service')}
             </Link>
             <Link to="/contact" className="hover:text-slate-400 transition-colors">
-              Dispute Resolution
+              {t('nav.contact', 'Contact Support')}
             </Link>
           </div>
         </div>

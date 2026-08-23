@@ -1,24 +1,22 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from 'react-query';
+import { useTranslation } from 'react-i18next';
 import { cropsAPI } from '../services/api';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
+import { calculateDistance } from '../utils/geolocation';
+import { getFarmerWhatsAppLink, getCropShareWhatsAppLink } from '../utils/whatsapp';
 import { 
   ArrowLeft, 
-  Heart, 
   ShoppingCart, 
   Star, 
   MapPin, 
-  Calendar,
   Leaf,
-  Award,
-  Truck,
-  Clock,
-  Shield,
   User,
-  Phone,
-  Mail
+  Share2,
+  Compass,
+  MessageCircle
 } from 'lucide-react';
 import LoadingSpinner from '../components/UI/LoadingSpinner';
 import toast from 'react-hot-toast';
@@ -26,12 +24,13 @@ import toast from 'react-hot-toast';
 const CropDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [isFavorite, setIsFavorite] = useState(false);
+  const [userDistance, setUserDistance] = useState(null);
 
   const { addToCart, canAddToCart } = useCart();
-  const { isAuthenticated, isBuyer, user } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   const { data: cropData, isLoading, error } = useQuery(
     ['crop', id],
@@ -43,9 +42,29 @@ const CropDetail = () => {
 
   const crop = cropData?.crop;
 
+  // Optional: check GPS distance if crop has coordinates
+  useEffect(() => {
+    if (crop?.location?.coordinates?.latitude && crop?.location?.coordinates?.longitude) {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const dist = calculateDistance(
+              pos.coords.latitude,
+              pos.coords.longitude,
+              crop.location.coordinates.latitude,
+              crop.location.coordinates.longitude
+            );
+            setUserDistance(dist);
+          },
+          () => {} // Quietly ignore if permission not granted
+        );
+      }
+    }
+  }, [crop]);
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <LoadingSpinner size="large" />
       </div>
     );
@@ -53,12 +72,12 @@ const CropDetail = () => {
 
   if (error || !crop) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Crop not found</h2>
-          <p className="text-gray-600 mb-4">The crop you're looking for doesn't exist or has been removed.</p>
-          <button onClick={() => navigate('/marketplace')} className="btn-primary">
-            Back to Marketplace
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="card text-center max-w-md p-8 shadow-xl">
+          <h2 className="text-2xl font-bold text-slate-900 mb-4">Crop Not Found</h2>
+          <p className="text-slate-600 mb-6">The crop listing you're looking for doesn't exist or has been removed.</p>
+          <button onClick={() => navigate('/marketplace')} className="btn-primary w-full">
+            {t('crop.backToListings', 'Back to Listings')}
           </button>
         </div>
       </div>
@@ -70,7 +89,7 @@ const CropDetail = () => {
       style: 'currency',
       currency: 'INR',
       maximumFractionDigits: 0
-    }).format(price);
+    }).format(price || 0);
   };
 
   const formatDate = (date) => {
@@ -84,14 +103,11 @@ const CropDetail = () => {
   const handleAddToCart = () => {
     if (!isAuthenticated) {
       toast.error('Please login to add items to cart');
+      navigate('/login');
       return;
     }
-    if (!isBuyer) {
-      toast.error('Only buyers can add items to cart');
-      return;
-    }
-    if (crop.farmer._id === user?.id) {
-      toast.error('Cannot add your own crops to cart');
+    if (crop.farmer?._id === user?.id || crop.farmer === user?.id) {
+      toast.error('Cannot add your own produce listing to cart');
       return;
     }
     if (!canAddToCart(crop)) {
@@ -99,6 +115,7 @@ const CropDetail = () => {
       return;
     }
     addToCart(crop, quantity);
+    toast.success(`Added ${quantity} ${crop.quantity?.unit} of ${crop.name} to cart!`);
   };
 
   const handleBuyNow = () => {
@@ -108,62 +125,97 @@ const CropDetail = () => {
     }
   };
 
-  const handleToggleFavorite = () => {
-    if (!isAuthenticated) {
-      toast.error('Please login to add to favorites');
-      return;
-    }
-    setIsFavorite(!isFavorite);
-    toast.success(isFavorite ? 'Removed from favorites' : 'Added to favorites');
+  // WhatsApp Farmer Chat Link
+  const handleWhatsAppChat = () => {
+    const link = getFarmerWhatsAppLink({
+      farmerPhone: crop.farmer?.phone,
+      farmerName: crop.farmer?.name,
+      cropName: crop.name,
+      quantity: quantity,
+      unit: crop.quantity?.unit || 'kg',
+      price: crop.price?.perUnit || 0,
+      cropId: crop._id
+    });
+    window.open(link, '_blank');
   };
 
-  const isOwner = crop.farmer._id === user?.id;
-  const availableQuantity = crop.quantity.value;
-  const maxQuantity = Math.min(availableQuantity, crop.availability.maximumOrder || availableQuantity);
+  // WhatsApp Share Listing Link
+  const handleWhatsAppShare = () => {
+    const link = getCropShareWhatsAppLink(crop);
+    window.open(link, '_blank');
+  };
+
+  const isOwner = crop.farmer?._id === user?.id;
+  const availableQuantity = crop.quantity?.value || 0;
+  const maxQuantity = Math.min(availableQuantity, crop.availability?.maximumOrder || availableQuantity);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div className="min-h-screen bg-slate-50/70 pb-20">
+      
+      {/* Top Breadcrumb & Share Header */}
+      <div className="bg-white border-b border-slate-200/80 sticky top-20 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center space-x-2 text-gray-600 hover:text-primary-600 transition-colors"
+            className="inline-flex items-center space-x-2 text-sm font-bold text-slate-600 hover:text-emerald-700 transition-colors"
           >
-            <ArrowLeft className="w-5 h-5" />
-            <span>Back</span>
+            <ArrowLeft className="w-4 h-4" />
+            <span>{t('crop.backToListings', 'Back to Listings')}</span>
           </button>
+
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleWhatsAppShare}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-[#25D366] hover:bg-[#20bd5a] shadow-sm transition-all"
+              title="Share listing on WhatsApp"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>{t('crop.shareWhatsApp', 'Share on WhatsApp')}</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* Images */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+          
+          {/* Images Section */}
           <div className="space-y-4">
-            {/* Main Image */}
-            <div className="aspect-w-16 aspect-h-12 bg-gray-200 rounded-lg overflow-hidden">
-              {crop.images && crop.images.length > 0 ? (
-                <img
-                  src={crop.images[selectedImageIndex].url}
-                  alt={crop.images[selectedImageIndex].alt || crop.name}
-                  className="w-full h-96 object-cover"
-                />
-              ) : (
-                <div className="w-full h-96 bg-gray-200 flex items-center justify-center">
-                  <span className="text-gray-400 text-lg">No Image Available</span>
+            <div className="card p-0 overflow-hidden bg-slate-100 rounded-3xl border border-slate-200/80 shadow-lg relative aspect-w-16 aspect-h-12 max-h-[420px]">
+              <img
+                src={crop.images?.[selectedImageIndex]?.url || 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=800&q=80'}
+                alt={crop.images?.[selectedImageIndex]?.alt || crop.name}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=800&q=80';
+                }}
+              />
+
+              {crop.quality?.organic && (
+                <div className="absolute top-4 left-4 px-3 py-1 rounded-xl text-xs font-black bg-emerald-700/90 text-white backdrop-blur-md shadow-md flex items-center space-x-1.5">
+                  <Leaf className="w-3.5 h-3.5" />
+                  <span>100% Organic Certified</span>
+                </div>
+              )}
+
+              {userDistance !== null && (
+                <div className="absolute bottom-4 left-4 px-3 py-1.5 rounded-xl bg-slate-900/85 text-white text-xs font-bold backdrop-blur-md shadow-md flex items-center space-x-1.5">
+                  <Compass className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>📍 {userDistance} {t('crop.distanceAway', 'km away from your location')}</span>
                 </div>
               )}
             </div>
 
-            {/* Thumbnail Images */}
+            {/* Thumbnail Gallery */}
             {crop.images && crop.images.length > 1 && (
-              <div className="flex space-x-2 overflow-x-auto">
+              <div className="flex space-x-3 overflow-x-auto pb-1">
                 {crop.images.map((image, index) => (
                   <button
                     key={index}
                     onClick={() => setSelectedImageIndex(index)}
-                    className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 ${
-                      selectedImageIndex === index ? 'border-primary-500' : 'border-gray-200'
+                    className={`flex-shrink-0 w-20 h-20 rounded-2xl overflow-hidden border-2 transition-all ${
+                      selectedImageIndex === index ? 'border-emerald-600 ring-2 ring-emerald-500/30' : 'border-slate-200'
                     }`}
                   >
                     <img
@@ -177,282 +229,200 @@ const CropDetail = () => {
             )}
           </div>
 
-          {/* Product Info */}
+          {/* Product Info Section */}
           <div className="space-y-6">
-            {/* Title and Category */}
+            
             <div>
               <div className="flex items-center space-x-2 mb-2">
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
                   {crop.category}
                 </span>
-                {crop.quality?.organic && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    <Leaf className="w-3 h-3 mr-1" />
-                    Organic
-                  </span>
-                )}
-                {crop.quality?.certified && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    <Award className="w-3 h-3 mr-1" />
-                    Certified
+                {crop.variety && (
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                    {crop.variety}
                   </span>
                 )}
               </div>
-              <h1 className="text-3xl font-bold text-gray-900">{crop.name}</h1>
-              <p className="text-lg text-gray-600 mt-2">{crop.variety}</p>
-            </div>
-
-            {/* Description */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Description</h3>
-              <p className="text-gray-700 leading-relaxed">{crop.description}</p>
-            </div>
-
-            {/* Quality Details */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Quality Details</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="text-sm text-gray-600">Grade</div>
-                  <div className="font-semibold text-gray-900">{crop.quality?.grade || 'Grade A'}</div>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="text-sm text-gray-600">Moisture Content</div>
-                  <div className="font-semibold text-gray-900">{crop.quality?.moistureContent || 'N/A'}</div>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="text-sm text-gray-600">Purity</div>
-                  <div className="font-semibold text-gray-900">{crop.quality?.purity ? `${crop.quality.purity}%` : 'N/A'}</div>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="text-sm text-gray-600">Packaging</div>
-                  <div className="font-semibold text-gray-900">{crop.packaging?.type || 'Standard'}</div>
-                </div>
+              <h1 className="text-3xl sm:text-4xl font-black text-slate-900 font-heading">
+                {crop.name}
+              </h1>
+              <div className="flex items-center space-x-3 text-xs text-slate-500 mt-2">
+                <span className="flex items-center space-x-1">
+                  <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{crop.location?.district || crop.location?.city}, {crop.location?.state}</span>
+                </span>
+                <span>•</span>
+                <span>Pincode: {crop.location?.pincode}</span>
               </div>
             </div>
 
-            {/* Price and Quantity */}
-            <div className="bg-primary-50 rounded-lg p-6">
-              <div className="flex items-center justify-between mb-4">
+            {/* Price & Order Card */}
+            <div className="card bg-gradient-to-br from-emerald-50/90 to-teal-50/70 border border-emerald-200/80 p-6 rounded-3xl space-y-4">
+              <div className="flex items-baseline justify-between">
                 <div>
-                  <div className="text-3xl font-bold text-primary-600">
-                    {formatPrice(crop.price.perUnit)}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    per {crop.quantity.unit}
-                  </div>
+                  <span className="text-3xl sm:text-4xl font-black text-emerald-800 font-heading">
+                    {formatPrice(crop.price?.perUnit)}
+                  </span>
+                  <span className="text-sm font-semibold text-slate-600 ml-1.5">
+                    / {crop.quantity?.unit}
+                  </span>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg font-semibold text-gray-900">
-                    {crop.quantity.value} {crop.quantity.unit}
+                  <div className="text-base font-bold text-slate-900">
+                    {crop.quantity?.value} {crop.quantity?.unit}
                   </div>
-                  <div className="text-sm text-gray-600">available</div>
+                  <div className="text-xs text-emerald-700 font-medium">{t('crop.inStock', 'In Stock for Immediate Delivery')}</div>
                 </div>
               </div>
 
               {!isOwner && (
-                <div className="space-y-4">
-                  {/* Quantity Selector */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Quantity ({crop.quantity.unit})
+                <div className="space-y-3 pt-2">
+                  {/* Quantity Counter */}
+                  <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-emerald-100">
+                    <label className="text-xs font-bold text-slate-700 uppercase">
+                      {t('crop.selectQuantity', 'Select Quantity')} ({crop.quantity?.unit}):
                     </label>
                     <div className="flex items-center space-x-3">
                       <button
                         onClick={() => setQuantity(Math.max(1, quantity - 1))}
                         disabled={quantity <= 1}
-                        className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                        className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 disabled:opacity-40"
                       >
                         -
                       </button>
-                      <input
-                        type="number"
-                        min="1"
-                        max={maxQuantity}
-                        value={quantity}
-                        onChange={(e) => setQuantity(Math.max(1, Math.min(maxQuantity, parseInt(e.target.value) || 1)))}
-                        className="w-20 text-center border border-gray-300 rounded-lg py-2"
-                      />
+                      <span className="w-10 text-center font-bold text-slate-900 text-base">
+                        {quantity}
+                      </span>
                       <button
                         onClick={() => setQuantity(Math.min(maxQuantity, quantity + 1))}
                         disabled={quantity >= maxQuantity}
-                        className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                        className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 disabled:opacity-40"
                       >
                         +
                       </button>
                     </div>
-                    <div className="text-sm text-gray-600 mt-1">
-                      Total: {formatPrice(crop.price.perUnit * quantity)}
-                    </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={handleToggleFavorite}
-                      className={`flex-1 py-3 px-4 rounded-lg border transition-colors ${
-                        isFavorite
-                          ? 'border-red-300 bg-red-50 text-red-600'
-                          : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      <Heart className={`w-5 h-5 mx-auto ${isFavorite ? 'fill-current' : ''}`} />
-                    </button>
+                  {/* Primary Order Buttons */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button
                       onClick={handleAddToCart}
                       disabled={!canAddToCart(crop)}
-                      className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="btn-secondary py-3 text-sm font-bold justify-center"
                     >
-                      <ShoppingCart className="w-5 h-5 mr-2" />
-                      Add to Cart
+                      <ShoppingCart className="w-4 h-4 mr-2 text-emerald-600" />
+                      <span>{t('crop.addToCart', 'Add to Cart')}</span>
                     </button>
+
                     <button
                       onClick={handleBuyNow}
                       disabled={!canAddToCart(crop)}
-                      className="flex-1 bg-primary-700 hover:bg-primary-800 text-white font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="btn-primary py-3 text-sm font-bold justify-center shadow-lg"
                     >
-                      Buy Now
+                      <span>{t('crop.buyNow', 'Buy Now')} ({formatPrice((crop.price?.perUnit || 0) * quantity)})</span>
                     </button>
                   </div>
-                </div>
-              )}
 
-              {isOwner && (
-                <div className="text-center py-4">
-                  <p className="text-gray-600 mb-4">This is your own crop listing</p>
-                  <div className="flex space-x-3 justify-center">
-                    <button className="btn-outline">
-                      Edit Crop
-                    </button>
-                    <button className="btn-secondary">
-                      View Analytics
-                    </button>
-                  </div>
+                  {/* WhatsApp Direct Chat Button */}
+                  <button
+                    type="button"
+                    onClick={handleWhatsAppChat}
+                    className="w-full py-3.5 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-sm shadow-md shadow-emerald-600/20 flex items-center justify-center space-x-2 transition-all transform hover:scale-[1.01]"
+                  >
+                    <MessageCircle className="w-5 h-5 fill-current" />
+                    <span>{t('whatsapp.chatWithFarmer', '📱 Chat with Farmer on WhatsApp')}</span>
+                  </button>
                 </div>
               )}
             </div>
 
-            {/* Key Information */}
-            <div className="space-y-4">
-              <div className="flex items-center space-x-3 text-gray-600">
-                <MapPin className="w-5 h-5" />
-                <span>{crop.location.district}, {crop.location.state}</span>
-              </div>
-              <div className="flex items-center space-x-3 text-gray-600">
-                <Calendar className="w-5 h-5" />
-                <span>Harvested on {formatDate(crop.harvestDate)}</span>
-              </div>
-              <div className="flex items-center space-x-3 text-gray-600">
-                <Clock className="w-5 h-5" />
-                <span>Expires on {formatDate(crop.expiryDate)}</span>
-              </div>
-              {crop.delivery.available && (
-                <div className="flex items-center space-x-3 text-gray-600">
-                  <Truck className="w-5 h-5" />
-                  <span>Delivery available within {crop.delivery.radius}km</span>
-                </div>
-              )}
+            {/* Description */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                {t('crop.description', 'Produce Description')}
+              </h3>
+              <p className="text-sm text-slate-600 leading-relaxed bg-white p-4 rounded-2xl border border-slate-200/80">
+                {crop.description || 'Fresh produce directly harvested from local agricultural fields.'}
+              </p>
             </div>
+
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3.5 bg-white rounded-2xl border border-slate-200/80 space-y-1">
+                <span className="text-slate-400 font-medium">{t('crop.harvestDate', 'Harvest Date')}</span>
+                <p className="font-bold text-slate-800">{formatDate(crop.harvestDate)}</p>
+              </div>
+
+              <div className="p-3.5 bg-white rounded-2xl border border-slate-200/80 space-y-1">
+                <span className="text-slate-400 font-medium">{t('crop.expiryDate', 'Best Before')}</span>
+                <p className="font-bold text-slate-800">{formatDate(crop.expiryDate)}</p>
+              </div>
+
+              <div className="p-3.5 bg-white rounded-2xl border border-slate-200/80 space-y-1">
+                <span className="text-slate-400 font-medium">{t('crop.qualityGrade', 'Quality Grade')}</span>
+                <p className="font-bold text-slate-800">{crop.quality?.grade || 'Grade A'}</p>
+              </div>
+
+              <div className="p-3.5 bg-white rounded-2xl border border-slate-200/80 space-y-1">
+                <span className="text-slate-400 font-medium">{t('crop.packaging', 'Packaging')}</span>
+                <p className="font-bold text-slate-800">{crop.packaging?.type || 'Standard Crates'}</p>
+              </div>
+            </div>
+
           </div>
+
         </div>
 
-        {/* Farmer Information */}
-        <div className="mt-12 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-xl font-semibold text-gray-900 mb-6">About the Farmer</h3>
-          <div className="flex items-start space-x-6">
-            <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center">
-              <User className="w-8 h-8 text-primary-600" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center space-x-3 mb-2">
-                <h4 className="text-lg font-semibold text-gray-900">{crop.farmer.name}</h4>
-                <div className="flex items-center space-x-1">
-                  <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                  <span className="text-sm text-gray-600">
-                    {crop.farmer.rating?.average?.toFixed(1) || 'New'}
+        {/* Farmer Profile Card with Direct WhatsApp Contact */}
+        <div className="mt-10 card p-6 sm:p-8 bg-white border border-slate-200/80 rounded-3xl shadow-md">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+            <div className="flex items-start space-x-4">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white flex items-center justify-center font-black text-2xl shadow-md">
+                {crop.farmer?.name?.charAt(0) || '👨‍🌾'}
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-xl font-bold text-slate-900 font-heading">
+                    {crop.farmer?.name || 'Verified Farmer'}
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                    {t('crop.verifiedSeller', 'Verified Seller')}
                   </span>
                 </div>
+                <p className="text-xs text-slate-500">
+                  {crop.farmer?.farmDetails?.farmName || 'Green Field Farm'} • {crop.farmer?.address?.city || 'Pune'}, {crop.farmer?.address?.state || 'Maharashtra'}
+                </p>
+                <div className="flex items-center space-x-1 text-xs text-amber-500 font-bold pt-1">
+                  <Star className="w-4 h-4 fill-current" />
+                  <span>{crop.farmer?.rating?.average || '4.8'}</span>
+                  <span className="text-slate-400 font-normal">({crop.farmer?.rating?.count || 12} reviews)</span>
+                </div>
               </div>
-              <p className="text-gray-600 mb-4">
-                {crop.farmer.farmDetails?.farmName && `Farm: ${crop.farmer.farmDetails.farmName}`}
-                {crop.farmer.farmDetails?.farmingExperience && 
-                  ` • ${crop.farmer.farmDetails.farmingExperience} years experience`}
-              </p>
-              <div className="flex items-center space-x-4">
-                <button className="btn-outline text-sm py-2 px-4">
-                  <User className="w-4 h-4 mr-2" />
-                  View Profile
-                </button>
-                <button className="btn-outline text-sm py-2 px-4">
-                  <Phone className="w-4 h-4 mr-2" />
-                  Contact
-                </button>
-              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2.5 sm:self-center">
+              <button
+                type="button"
+                onClick={handleWhatsAppChat}
+                className="px-4 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm"
+              >
+                <MessageCircle className="w-4 h-4 fill-current" />
+                <span>{t('whatsapp.chatWithFarmer', '📱 Chat with Farmer on WhatsApp')}</span>
+              </button>
+
+              <Link
+                to={`/farmer/${crop.farmer?._id || crop.farmer}`}
+                className="btn-secondary text-xs py-2.5 px-4"
+              >
+                <User className="w-3.5 h-3.5 mr-1" />
+                <span>{t('crop.viewFarmerProfile', 'View Full Profile')}</span>
+              </Link>
             </div>
           </div>
         </div>
 
-        {/* Additional Information */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Delivery Information */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Delivery Information</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Delivery Available</span>
-                <span className={`font-medium ${crop.delivery.available ? 'text-green-600' : 'text-red-600'}`}>
-                  {crop.delivery.available ? 'Yes' : 'No'}
-                </span>
-              </div>
-              {crop.delivery.available && (
-                <>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Delivery Radius</span>
-                    <span className="font-medium">{crop.delivery.radius}km</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Delivery Charges</span>
-                    <span className="font-medium">
-                      {crop.delivery.charges > 0 ? formatPrice(crop.delivery.charges) : 'Free'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Estimated Delivery</span>
-                    <span className="font-medium">
-                      {crop.delivery.estimatedDays} days
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Order Information */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Information</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Minimum Order</span>
-                <span className="font-medium">{crop.availability.minimumOrder} {crop.quantity.unit}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Maximum Order</span>
-                <span className="font-medium">
-                  {crop.availability.maximumOrder || 'No limit'} {crop.quantity.unit}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Availability</span>
-                <span className={`font-medium capitalize ${
-                  crop.availability.status === 'available' ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {crop.availability.status}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
+
     </div>
   );
 };

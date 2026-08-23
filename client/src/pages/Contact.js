@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
   Mail, 
   Phone, 
   MapPin, 
-  Clock, 
   Send,
   MessageCircle,
-  Headphones,
-  HelpCircle
+  HelpCircle,
+  Sparkles
 } from 'lucide-react';
+import { getSupportWhatsAppLink, WHATSAPP_SUPPORT_NUMBER } from '../utils/whatsapp';
 import toast from 'react-hot-toast';
 
 const Contact = () => {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -33,9 +35,8 @@ const Contact = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Simulate form submission
     setTimeout(() => {
-      toast.success('Message sent successfully! We\'ll get back to you soon.');
+      toast.success(t('common.success', 'Message sent successfully! We will get back to you soon.'));
       setFormData({
         name: '',
         email: '',
@@ -44,313 +45,252 @@ const Contact = () => {
         type: 'general'
       });
       setIsSubmitting(false);
-    }, 2000);
+    }, 1500);
+  };
+
+  const handleWhatsAppHelp = () => {
+    const link = getSupportWhatsAppLink(`Hello Farm2Market Support! My name is ${formData.name || 'User'}. I need help with: ${formData.subject || 'General Inquiry'}`);
+    window.open(link, '_blank');
   };
 
   const contactMethods = [
     {
-      icon: <Mail className="w-6 h-6 text-primary-600" />,
-      title: "Email Us",
-      description: "Send us an email anytime",
-      contact: "support@farm2market.com",
-      action: "mailto:support@farm2market.com"
+      icon: <MessageCircle className="w-6 h-6 text-[#25D366]" />,
+      title: t('contact.whatsappTitle', 'WhatsApp Support'),
+      description: t('contact.whatsappDesc', 'Chat directly with our support team on WhatsApp'),
+      contact: WHATSAPP_SUPPORT_NUMBER,
+      action: getSupportWhatsAppLink(),
+      isWhatsApp: true
     },
     {
-      icon: <Phone className="w-6 h-6 text-green-600" />,
-      title: "Call Us",
-      description: "Mon-Fri from 9am to 6pm",
-      contact: "+91 6006097169",
-      action: "tel:+916006097169"
+      icon: <Mail className="w-6 h-6 text-emerald-600" />,
+      title: t('contact.emailTitle', 'Email Support'),
+      description: t('contact.emailDesc', 'Send us your queries anytime'),
+      contact: 'support@farm2market.in',
+      action: 'mailto:support@farm2market.in',
+      isWhatsApp: false
     },
     {
-      icon: <MapPin className="w-6 h-6 text-green-600" />,
-      title: "Visit Us",
-      description: "Come say hello at our office",
-      contact: "KIT Kolhapur, Maharashtra, India",
-      action: "#"
+      icon: <Phone className="w-6 h-6 text-emerald-600" />,
+      title: t('contact.phoneTitle', 'Phone Helpline'),
+      description: t('contact.phoneDesc', 'Mon - Sat from 9:00 AM to 7:00 PM IST'),
+      contact: '+91 6006097169',
+      action: 'tel:+916006097169',
+      isWhatsApp: false
+    },
+    {
+      icon: <MapPin className="w-6 h-6 text-emerald-600" />,
+      title: t('contact.officeTitle', 'Innovation Office'),
+      description: t('contact.officeDesc', 'KIT Kolhapur, Maharashtra, India'),
+      contact: 'Kolhapur, India',
+      action: '#',
+      isWhatsApp: false
     }
   ];
 
   const faqs = [
     {
-      question: "How do I register as a farmer?",
-      answer: "Click on 'Join as Farmer' on our homepage, fill in your details including farm information, and verify your account. You can start listing your crops immediately after registration."
+      question: t('contact.faq1Q', 'How do farmers receive payments?'),
+      answer: t('contact.faq1A', 'Payments are processed securely via direct bank transfer or UPI once the buyer confirms delivery inspection.')
     },
     {
-      question: "What types of crops can I sell?",
-      answer: "You can sell any type of agricultural produce including cereals, pulses, vegetables, fruits, spices, medicinal plants, and more. We support both organic and conventional farming."
+      question: t('contact.faq2Q', 'Is there a registration fee for farmers?'),
+      answer: t('contact.faq2A', 'No, joining Farm2Market is completely free for all Indian farmers with zero upfront subscription costs.')
     },
     {
-      question: "How do payments work?",
-      answer: "We support multiple payment methods including credit/debit cards, UPI, net banking, and cash on delivery. Payments are processed securely and farmers receive their earnings after successful delivery."
-    },
-    {
-      question: "Is there a fee for using Farm2Market?",
-      answer: "Farm2Market charges a small commission only on successful transactions. There are no upfront fees or subscription costs for farmers or buyers."
-    },
-    {
-      question: "How do I track my order?",
-      answer: "Once your order is confirmed, you'll receive tracking information via SMS and email. You can also track your order status in your dashboard."
-    },
-    {
-      question: "What if I'm not satisfied with my purchase?",
-      answer: "We have a quality guarantee policy. If you're not satisfied with the quality of produce received, contact our support team within 24 hours of delivery for a refund or replacement."
+      question: t('contact.faq3Q', 'Can buyers request sample batches or negotiate bulk pricing?'),
+      answer: t('contact.faq3A', 'Yes! Buyers can use the WhatsApp chat button to speak directly with the farmer and agree on custom bulk orders.')
     }
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="text-center space-y-4">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
-              Contact Us
-            </h1>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Have questions or need help? We're here to assist you. 
-              Get in touch with our team and we'll respond promptly.
-            </p>
-          </div>
+    <div className="min-h-screen bg-slate-50/70 pb-20">
+      
+      {/* Header Banner */}
+      <section className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-950 text-white py-14 relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center space-y-4">
+          <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{t('contact.badge', 'Get in Touch')}</span>
+          </span>
+          <h1 className="text-3xl sm:text-4xl font-black font-heading tracking-tight">
+            {t('contact.title', "We're Here to Help")}
+          </h1>
+          <p className="text-emerald-100/80 text-sm sm:text-base max-w-2xl mx-auto">
+            {t('contact.subtitle', 'Have questions about crop listings, buyer bulk orders, or technical support? Contact our 24/7 helpline.')}
+          </p>
         </div>
-      </div>
+      </section>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          {/* Contact Information */}
-          <div className="lg:col-span-1">
-            <div className="space-y-8">
-              {/* Contact Methods */}
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Get in Touch</h2>
-                <div className="space-y-6">
-                  {contactMethods.map((method, index) => (
-                    <div key={index} className="flex items-start space-x-4">
-                      <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        {method.icon}
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{method.title}</h3>
-                        <p className="text-gray-600 text-sm mb-1">{method.description}</p>
-                        <a 
-                          href={method.action}
-                          className="text-primary-600 hover:text-primary-700 font-medium"
-                        >
-                          {method.contact}
-                        </a>
-                      </div>
-                    </div>
-                  ))}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6">
+        
+        {/* Contact Methods Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          {contactMethods.map((method, index) => (
+            <a
+              key={index}
+              href={method.action}
+              target={method.isWhatsApp ? '_blank' : '_self'}
+              rel={method.isWhatsApp ? 'noopener noreferrer' : ''}
+              className={`card p-6 transition-all duration-200 hover:shadow-xl hover:-translate-y-1 block ${
+                method.isWhatsApp 
+                  ? 'border-2 border-[#25D366]/40 bg-gradient-to-br from-white to-emerald-50/60 ring-2 ring-emerald-500/10' 
+                  : 'border border-slate-200/80 bg-white'
+              }`}
+            >
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center mb-4">
+                {method.icon}
+              </div>
+              <h3 className="font-bold text-slate-900 text-base font-heading mb-1">{method.title}</h3>
+              <p className="text-xs text-slate-500 mb-3">{method.description}</p>
+              <div className="text-xs font-bold text-emerald-700 break-all">{method.contact}</div>
+            </a>
+          ))}
+        </div>
+
+        {/* Main Content: Form & FAQs */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          {/* Form */}
+          <div className="lg:col-span-7">
+            <div className="card p-6 sm:p-8 bg-white border border-slate-200/80 shadow-md">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 font-heading">
+                    {t('contact.formTitle', 'Send Us a Message')}
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">We typically reply within 2 hours</p>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={handleWhatsAppHelp}
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white text-xs font-bold shadow-sm"
+                >
+                  <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                  <span>WhatsApp Live</span>
+                </button>
               </div>
 
-              {/* Office Hours */}
-              <div className="bg-primary-50 rounded-lg p-6">
-                <div className="flex items-center space-x-3 mb-4">
-                  <Clock className="w-6 h-6 text-primary-600" />
-                  <h3 className="font-semibold text-gray-900">Office Hours</h3>
-                </div>
-                <div className="space-y-2 text-sm text-gray-600">
-                  <div className="flex justify-between">
-                    <span>Monday - Friday</span>
-                    <span>9:00 AM - 6:00 PM</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Saturday</span>
-                    <span>10:00 AM - 4:00 PM</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Sunday</span>
-                    <span>Closed</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Support Types */}
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-4">Quick Support</h3>
-                <div className="space-y-3">
-                  <a href="#" className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-primary-300 transition-colors">
-                    <MessageCircle className="w-5 h-5 text-primary-600" />
-                    <span className="text-gray-700">Live Chat</span>
-                  </a>
-                  <a href="#" className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-primary-300 transition-colors">
-                    <Headphones className="w-5 h-5 text-primary-600" />
-                    <span className="text-gray-700">Customer Support</span>
-                  </a>
-                  <a href="#" className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-primary-300 transition-colors">
-                    <HelpCircle className="w-5 h-5 text-primary-600" />
-                    <span className="text-gray-700">Help Center</span>
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Contact Form */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Send us a Message</h2>
-              
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name *
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      {t('contact.formName', 'Full Name')} *
                     </label>
                     <input
                       type="text"
-                      id="name"
                       name="name"
-                      required
                       value={formData.name}
                       onChange={handleChange}
-                      className="input-field"
-                      placeholder="Enter your full name"
+                      required
+                      placeholder="Your name"
+                      className="input-field text-sm"
                     />
                   </div>
+
                   <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Address *
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      {t('contact.formEmail', 'Email Address')} *
                     </label>
                     <input
                       type="email"
-                      id="email"
                       name="email"
-                      required
                       value={formData.email}
                       onChange={handleChange}
-                      className="input-field"
-                      placeholder="Enter your email"
+                      required
+                      placeholder="you@example.com"
+                      className="input-field text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      {t('contact.formType', 'Inquiry Type')}
+                    </label>
+                    <select
+                      name="type"
+                      value={formData.type}
+                      onChange={handleChange}
+                      className="input-field text-sm"
+                    >
+                      <option value="general">{t('contact.typeGeneral', 'General Inquiry')}</option>
+                      <option value="farmer">{t('contact.typeFarmer', 'Farmer Support & Onboarding')}</option>
+                      <option value="buyer">{t('contact.typeBuyer', 'Buyer Bulk Purchase')}</option>
+                      <option value="technical">{t('contact.typeTechnical', 'Technical Issue')}</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      {t('contact.formSubject', 'Subject')} *
+                    </label>
+                    <input
+                      type="text"
+                      name="subject"
+                      value={formData.subject}
+                      onChange={handleChange}
+                      required
+                      placeholder="Summary of inquiry"
+                      className="input-field text-sm"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-2">
-                    Inquiry Type *
-                  </label>
-                  <select
-                    id="type"
-                    name="type"
-                    required
-                    value={formData.type}
-                    onChange={handleChange}
-                    className="input-field"
-                  >
-                    <option value="general">General Inquiry</option>
-                    <option value="farmer">Farmer Support</option>
-                    <option value="buyer">Buyer Support</option>
-                    <option value="technical">Technical Issue</option>
-                    <option value="partnership">Partnership</option>
-                    <option value="feedback">Feedback</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-2">
-                    Subject *
-                  </label>
-                  <input
-                    type="text"
-                    id="subject"
-                    name="subject"
-                    required
-                    value={formData.subject}
-                    onChange={handleChange}
-                    className="input-field"
-                    placeholder="Enter message subject"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-2">
-                    Message *
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    {t('contact.formMessage', 'Your Message')} *
                   </label>
                   <textarea
-                    id="message"
                     name="message"
-                    required
-                    rows={6}
+                    rows="4"
                     value={formData.message}
                     onChange={handleChange}
-                    className="input-field resize-none"
-                    placeholder="Enter your message..."
-                  />
+                    required
+                    placeholder="How can our agricultural support team help you today?"
+                    className="input-field text-sm"
+                  ></textarea>
                 </div>
 
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full btn-primary flex items-center justify-center py-3"
+                  className="w-full btn-primary py-3 text-sm font-bold justify-center shadow-lg"
                 >
-                  {isSubmitting ? (
-                    <>
-                      <div className="spinner w-5 h-5 mr-2"></div>
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-5 h-5 mr-2" />
-                      Send Message
-                    </>
-                  )}
+                  <Send className="w-4 h-4 mr-2" />
+                  <span>{isSubmitting ? t('contact.formSending', 'Sending Message...') : t('contact.formSubmit', 'Send Message')}</span>
                 </button>
               </form>
             </div>
           </div>
-        </div>
 
-        {/* FAQ Section */}
-        <div className="mt-20">
-          <div className="text-center space-y-4 mb-12">
-            <h2 className="text-3xl font-bold text-gray-900">Frequently Asked Questions</h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Find answers to common questions about Farm2Market. 
-              Can't find what you're looking for? Contact us!
-            </p>
-          </div>
+          {/* FAQs */}
+          <div className="lg:col-span-5 space-y-4">
+            <div className="card p-6 bg-white border border-slate-200/80 shadow-md space-y-4">
+              <div className="flex items-center space-x-2 pb-3 border-b border-slate-100">
+                <HelpCircle className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-bold text-slate-900 font-heading text-lg">
+                  {t('contact.faqsTitle', 'Frequently Asked Questions')}
+                </h3>
+              </div>
 
-          <div className="max-w-4xl mx-auto">
-            <div className="space-y-4">
-              {faqs.map((faq, index) => (
-                <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200">
-                  <button className="w-full px-6 py-4 text-left flex items-center justify-between hover:bg-gray-50 transition-colors">
-                    <h3 className="font-semibold text-gray-900">{faq.question}</h3>
-                    <div className="w-6 h-6 text-gray-400">
-                      <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </button>
-                  <div className="px-6 pb-4">
-                    <p className="text-gray-600 leading-relaxed">{faq.answer}</p>
+              <div className="space-y-4">
+                {faqs.map((faq, index) => (
+                  <div key={index} className="p-4 bg-slate-50 rounded-2xl space-y-1.5">
+                    <h4 className="font-bold text-slate-900 text-xs sm:text-sm">{faq.question}</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed">{faq.answer}</p>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Map Section */}
-        <div className="mt-20">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xl font-semibold text-gray-900">Find Us</h3>
-              <p className="text-gray-600">Visit our office in New Delhi</p>
-            </div>
-            <div className="h-96 bg-gray-200 flex items-center justify-center">
-              <div className="text-center">
-                <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">Interactive map would be displayed here</p>
-                <p className="text-sm text-gray-500 mt-2">
-                  KIT Kolhapur, Maharashtra, India
-                </p>
+                ))}
               </div>
             </div>
           </div>
+
         </div>
+
       </div>
+
     </div>
   );
 };
